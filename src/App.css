@@ -1,0 +1,146 @@
+.page {
+  width: 100%;
+  max-width: 520px;
+  padding: 24px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+button {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  background: white;
+  cursor: pointer;
+}
+
+.art {
+  width: min(80vw, 420px);
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  margin: 16px auto;
+  position: relative;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+
+.cell {
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+
+.cell.revealed {
+  background: transparent;
+  cursor: default;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 420px;
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.modalCard h2 {
+  margin: 0 0 8px 0;
+}
+
+.modalCard p {
+  margin: 0 0 14px 0;
+  opacity: 0.85;
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+h1 {
+  margin-bottom: 8px;
+}
+
+p {
+  margin: 8px 0;
+}
+
+.shareCardWrapper {
+  position: absolute;
+  left: -99999px;
+  top: -99999px;
+}
+
+.shareCard {
+  width: 1080px;
+  height: 1080px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 48px;
+  overflow: hidden;
+  position: relative;
+  font-family: system-ui, sans-serif;
+}
+
+.shareOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 64px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.65),
+    rgba(0, 0, 0, 0)
+  );
+  color: white;
+}
+
+.shareTitle {
+  font-size: 72px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.shareSub {
+  font-size: 44px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  opacity: 0.95;
+}
+
+.shareSmall {
+  font-size: 30px;
+  opacity: 0.9;
+}
