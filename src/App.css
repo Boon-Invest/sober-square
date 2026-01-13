@@ -25,10 +25,17 @@ button {
   aspect-ratio: 1 / 1;
   border-radius: 16px;
   overflow: hidden;
-  background-size: cover;
+  background-size: 140% 140%;
+  animation: drift 18s ease-in-out infinite;
   background-position: center;
   margin: 16px auto;
   position: relative;
+}
+
+@keyframes drift {
+  0% { background-position: 20% 30%; }
+  50% { background-position: 80% 70%; }
+  100% { background-position: 20% 30%; }
 }
 
 .grid {
@@ -143,4 +150,33 @@ p {
 .shareSmall {
   font-size: 30px;
   opacity: 0.9;
+}
+
+/* Fix iOS PWA Dark Mode making modal text invisible */
+.modalCard {
+  color: #111; /* force readable text on white card */
+}
+
+.modalCard h2,
+.modalCard p,
+.modalCard button {
+  color: inherit;
+}
+
+/* Optional: keep buttons readable inside the modal */
+.modalCard button {
+  background: white;
+  border: 1px solid #ccc;
+}
+
+/* If iOS is applying dark colour-scheme, this prevents weird auto adjustments */
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .modalCard {
+    background: white;
+    color: #111;
+  }
 }
