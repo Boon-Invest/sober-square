@@ -180,3 +180,62 @@ p {
     color: #111;
   }
 }
+
+.dotsLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.dot {
+  position: absolute;
+  border-radius: 999px;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.6;
+  animation-name: dotPulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0.95;
+  }
+}
+
+.dotsLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.dot {
+  position: absolute;
+  border-radius: 999px;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.6;
+  animation-name: dotPulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity, filter;
+  mix-blend-mode: screen; /* makes them glow into the art */
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0.95;
+  }
+}
