@@ -81,35 +81,6 @@ const spark = () =>
     transparent 40%)`
 );
 
-function makeDots(seed, count = 28) {
-  const r = randFromSeed(seed ^ 0x9e3779b9);
-
-  return Array.from({ length: count }, (_, i) => {
-    const hue = Math.floor(r() * 360);
-    const size = 6 + r() * 18; // px
-    const x = r() * 100; // %
-    const y = r() * 100; // %
-    const alpha = 0.25 + r() * 0.55;
-
-    // random pulse behaviour
-    const duration = 1.8 + r() * 3.8; // seconds
-    const delay = -(r() * duration); // negative so they start out of phase
-    const blur = r() * 1.2;
-
-    return {
-      id: `d-${i}`,
-      x,
-      y,
-      size,
-      hue,
-      alpha,
-      duration,
-      delay,
-      blur,
-    };
-  });
-}
-
 return [
   vignette,
   grain,
@@ -182,8 +153,6 @@ const GRID = gridSize;
 const TOTAL = GRID * GRID;
 
   const background = useMemo(() => makeArtCss(seed), [seed]);
-
-  const dots = useMemo(() => makeDots(seed, 28), [seed]);
 
   function showMessage(title, body) {
     setModal({
@@ -367,26 +336,6 @@ const TOTAL = GRID * GRID;
       )}
 
       <div className="art" style={{ backgroundImage: background }}>
-        <div className="dotsLayer" aria-hidden="true">
-  {dots.map((d) => (
-    <span
-      key={d.id}
-      className="dot"
-      style={{
-        left: `${d.x}%`,
-        top: `${d.y}%`,
-        width: `${d.size}px`,
-        height: `${d.size}px`,
-        background: `hsla(${d.hue},95%,70%,${d.alpha})`,
-        animationDuration: `${d.duration}s`,
-        animationDelay: `${d.delay}s`,
-        filter: `blur(${d.blur}px)`,
-        borderRadius: "999px",
-      }}
-    />
-  ))}
-</div>
-
         <div
           className="grid"
           style={{
