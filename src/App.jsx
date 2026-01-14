@@ -15,13 +15,6 @@ function loadState() {
   }
 }
 
-function forceRefresh() {
-  const url = new URL(window.location.href);
-  url.searchParams.set("v", BUILD);
-  url.searchParams.set("t", Date.now().toString());
-  window.location.replace(url.toString());
-}
-
 function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
@@ -104,7 +97,13 @@ return [
 
 export default function App() {
   const BUILD = import.meta.env.VITE_BUILD || "dev";
-
+  
+  function forceRefresh() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("v", BUILD);
+    url.searchParams.set("t", Date.now().toString());
+    window.location.replace(url.toString());
+  }
   const devMode = import.meta.env.DEV; // ON in npm run dev, OFF in npm run build
 
   const [modal, setModal] = useState(null);
