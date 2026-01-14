@@ -314,10 +314,6 @@ const TOTAL = GRID * GRID;
       <p>Streak: {streakDays} days</p>
       <p>Total alcohol-free days: {totalSoberDays}</p>
       <p>Badges: {badges.length}</p>
-      
-      <button onClick={forceRefresh} style={{ marginTop: 8 }}>
-      Refresh
-      </button>
 
       {devMode && (
         <div
@@ -370,6 +366,10 @@ const TOTAL = GRID * GRID;
       <p>
         {revealed.size}/{TOTAL} squares revealed
       </p>
+
+      <button onClick={forceRefresh} style={{ marginTop: 8 }}>
+      Refresh
+      </button>
 
       {modal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
