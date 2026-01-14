@@ -15,6 +15,13 @@ function loadState() {
   }
 }
 
+function forceRefresh() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("v", BUILD);
+  url.searchParams.set("t", Date.now().toString());
+  window.location.replace(url.toString());
+}
+
 function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
@@ -304,9 +311,14 @@ const TOTAL = GRID * GRID;
     <div className="page">
       <h1>Sober Square</h1>
       <div className="buildLabel">Build {BUILD}</div>
+
       <p>Streak: {streakDays} days</p>
       <p>Total alcohol-free days: {totalSoberDays}</p>
       <p>Badges: {badges.length}</p>
+      
+      <button onClick={forceRefresh} style={{ marginTop: 8 }}>
+      Force refresh
+      </button>
 
       {devMode && (
         <div
