@@ -93,10 +93,11 @@ return [
   spot(hue3, 88, 54, 0.40),
   base,
 ].join(",");
-
 }
 
 export default function App() {
+  const BUILD = import.meta.env.VITE_BUILD || "dev";
+
   const devMode = import.meta.env.DEV; // ON in npm run dev, OFF in npm run build
 
   const [modal, setModal] = useState(null);
@@ -302,6 +303,7 @@ const TOTAL = GRID * GRID;
   return (
     <div className="page">
       <h1>Sober Square</h1>
+      <div className="buildLabel">Build {BUILD}</div>
       <p>Streak: {streakDays} days</p>
       <p>Total alcohol-free days: {totalSoberDays}</p>
       <p>Badges: {badges.length}</p>
