@@ -367,7 +367,7 @@ const TOTAL = GRID * GRID;
         {revealed.size}/{TOTAL} squares revealed
       </p>
 
-      <button onClick={forceRefresh} style={{ marginTop: 8 }}>
+      <button className="forceRefresh" onClick={forceRefresh} style={{ marginTop: 8 }}>
       Refresh
       </button>
 
