@@ -95,6 +95,44 @@ return [
 ].join(",");
 }
 
+function PulsingDots({ seed }) {
+  // Stable positions per seed so it looks consistent per image
+  const dots = useMemo(() => {
+    const r = randFromSeed(seed);
+
+    const count = 8; // keep low for iOS safety
+    return Array.from({ length: count }, () => {
+      const size = Math.floor(10 + r() * 16); // 10..26px
+      return {
+        left: `${Math.floor(r() * 100)}%`,
+        top: `${Math.floor(r() * 100)}%`,
+        size,
+        delay: `${(r() * 2.4).toFixed(2)}s`,
+        duration: `${(2.6 + r() * 2.2).toFixed(2)}s`,
+      };
+    });
+  }, [seed]);
+
+  return (
+    <div className="dotLayer" aria-hidden="true">
+      {dots.map((d, i) => (
+        <span
+          key={i}
+          className="dot"
+          style={{
+            left: d.left,
+            top: d.top,
+            width: `${d.size}px`,
+            height: `${d.size}px`,
+            animationDelay: d.delay,
+            animationDuration: d.duration,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const BUILD = import.meta.env.VITE_BUILD || "dev";
   
@@ -345,13 +383,15 @@ const TOTAL = GRID * GRID;
       )}
 
       <div className="art" style={{ backgroundImage: background }}>
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(${GRID}, 1fr)`,
-            gridTemplateRows: `repeat(${GRID}, 1fr)`,
-          }}
-        >
+  <PulsingDots seed={seed} />
+
+  <div
+    className="grid"
+    style={{
+      gridTemplateColumns: `repeat(${GRID}, 1fr)`,
+      gridTemplateRows: `repeat(${GRID}, 1fr)`,
+    }}
+  >
           {Array.from({ length: TOTAL }).map((_, i) => (
             <button
               key={i}
