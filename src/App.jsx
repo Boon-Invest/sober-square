@@ -316,7 +316,7 @@ const TOTAL = GRID * GRID;
       <p>Badges: {badges.length}</p>
       
       <button onClick={forceRefresh} style={{ marginTop: 8 }}>
-      Force refresh
+      Refresh
       </button>
 
       {devMode && (
