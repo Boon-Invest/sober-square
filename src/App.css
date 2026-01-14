@@ -39,8 +39,7 @@ button {
 }
 
 .grid {
-  position: relative;
-  z-index: 1;
+  position: absolute;
   inset: 0;
   display: grid;
   width: 100%;
@@ -281,33 +280,4 @@ p {
 
 .shareCardWrapper .forceRefresh{
   display: none;
-}
-
-.dotLayer{
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dot{
-  position: absolute;
-  border-radius: 999px;
-  opacity: 0.18;
-  transform: translateZ(0) scale(0.9);
-  will-change: transform, opacity;
-  animation-name: dotPulse;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  background: rgba(255,255,255,0.9);
-}
-
-@keyframes dotPulse{
-  0%, 100% { transform: translateZ(0) scale(0.85); opacity: 0.12; }
-  50%      { transform: translateZ(0) scale(1.35); opacity: 0.28; }
-}
-
-@media (prefers-reduced-motion: reduce){
-  .dot{ animation: none; }
 }
