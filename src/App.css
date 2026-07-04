@@ -1,15 +1,9 @@
 .page {
   width: 100%;
-  max-width: 520px;
+  max-width: 720px;
   padding: 24px;
   box-sizing: border-box;
   text-align: center;
-}
-
-.buttons {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
 }
 
 button {
@@ -20,22 +14,143 @@ button {
   cursor: pointer;
 }
 
-.art {
-  width: min(80vw, 420px);
+h1 {
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  margin-top: 0;
+  opacity: 0.7;
+}
+
+p {
+  margin: 8px 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 16px auto;
+  max-width: 480px;
+}
+
+.statCard {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statLabel {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.utilityRow {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.utilityBtn {
+  font-size: 13px;
+}
+
+.recordBanner {
+  max-width: 480px;
+  margin: 0 auto 12px;
+  background: linear-gradient(135deg, #ffe08a, #ffb347);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4a2e00;
+}
+
+.recordBannerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.recordBannerActions button {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.resourceRow {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.resourceBtn {
+  font-size: 13px;
+}
+
+.resourceBtn.active {
+  border-color: #2a6fdb;
+  box-shadow: 0 0 0 2px rgba(42, 111, 219, 0.25);
+}
+
+.resourceBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modeHint {
+  font-size: 13px;
+  opacity: 0.7;
+  min-height: 18px;
+}
+
+.board {
+  width: min(94vw, 620px);
   aspect-ratio: 1 / 1;
   border-radius: 16px;
   overflow: hidden;
-  background-size: 140% 140%;
-  animation: drift 18s ease-in-out infinite;
-  background-position: center;
   margin: 16px auto;
   position: relative;
+  background: linear-gradient(160deg, #0a3d62, #1e6091 60%, #2a9df4);
 }
 
-@keyframes drift {
-  0% { background-position: 20% 30%; }
-  50% { background-position: 80% 70%; }
-  100% { background-position: 20% 30%; }
+.board.tense::after,
+.board.critical::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.board.tense::after {
+  background: radial-gradient(circle, transparent 55%, rgba(180, 30, 30, 0.28) 100%);
+  animation: tensionPulse 3s ease-in-out infinite;
+}
+
+.board.critical::after {
+  background: radial-gradient(circle, transparent 38%, rgba(180, 20, 20, 0.48) 100%);
+  animation: tensionPulse 1.3s ease-in-out infinite;
+}
+
+@keyframes tensionPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 .grid {
@@ -44,19 +159,183 @@ button {
   display: grid;
   width: 100%;
   height: 100%;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 1;
 }
 
 .cell {
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: 0;
+  padding: 0;
   cursor: pointer;
 }
 
-.cell.revealed {
-  background: transparent;
+.cell.fog {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 3px,
+    rgba(0, 0, 0, 0.08) 3px,
+    rgba(0, 0, 0, 0.08) 6px
+  );
+  background-color: #0f3a5f;
+}
+
+.cell.water {
+  background-color: #3aa0e0;
   cursor: default;
+}
+
+.cell.land {
+  background-color: #d8c27a;
+  cursor: default;
+  position: relative;
+}
+
+.cell.land.greenery::after {
+  content: "";
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background: #4a7c3f;
+}
+
+.cell.hit {
+  background-color: #e0553b;
+  cursor: default;
+  position: relative;
+  animation: cellPop 0.3s ease;
+}
+
+.cell.hit::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cell.sunk {
+  background-color: #33121a;
+  cursor: default;
+  position: relative;
+  animation: cellPop 0.4s ease;
+}
+
+.cell.sunk::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff8a80;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+@keyframes cellPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+.cell.spotted {
+  background-color: #7a8699;
+  cursor: pointer;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 16px;
+}
+
+.legend .swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.swatch.fog { background-color: #0f3a5f; }
+.swatch.water { background-color: #3aa0e0; }
+.swatch.land { background-color: #d8c27a; }
+.swatch.hit { background-color: #e0553b; }
+.swatch.sunk { background-color: #33121a; }
+.swatch.spotted { background-color: #7a8699; }
+
+.fleetList {
+  max-width: 420px;
+  margin: 0 auto 24px;
+  text-align: left;
+}
+
+.fleetList h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.fleetRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.fleetName {
+  flex: 1 1 auto;
+}
+
+.fleetStatus {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.shipIcon {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.shipSeg {
+  width: 10px;
+  height: 14px;
+  background: #6b7785;
+  border-radius: 2px;
+}
+
+.shipSeg.bow {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.shipSeg.stern {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.shipSeg.damaged {
+  background: #e0553b;
 }
 
 .modalOverlay {
@@ -77,6 +356,7 @@ button {
   border-radius: 16px;
   padding: 18px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  color: #111;
 }
 
 .modalCard h2 {
@@ -88,88 +368,24 @@ button {
   opacity: 0.85;
 }
 
-.modalActions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-h1 {
-  margin-bottom: 8px;
-}
-
-p {
-  margin: 8px 0;
-}
-
-.shareCardWrapper {
-  position: absolute;
-  left: -99999px;
-  top: -99999px;
-}
-
-.shareCard {
-  width: 1080px;
-  height: 1080px;
-  background-size: cover;
-  background-position: center;
-  border-radius: 48px;
-  overflow: hidden;
-  position: relative;
-  font-family: system-ui, sans-serif;
-}
-
-.shareOverlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 64px;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.65),
-    rgba(0, 0, 0, 0)
-  );
-  color: white;
-}
-
-.shareTitle {
-  font-size: 72px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
-
-.shareSub {
-  font-size: 44px;
-  font-weight: 700;
-  margin-bottom: 10px;
-  opacity: 0.95;
-}
-
-.shareSmall {
-  font-size: 30px;
-  opacity: 0.9;
-}
-
-/* Fix iOS PWA Dark Mode making modal text invisible */
-.modalCard {
-  color: #111; /* force readable text on white card */
-}
-
 .modalCard h2,
 .modalCard p,
 .modalCard button {
   color: inherit;
 }
 
-/* Optional: keep buttons readable inside the modal */
 .modalCard button {
   background: white;
   border: 1px solid #ccc;
 }
 
-/* If iOS is applying dark colour-scheme, this prevents weird auto adjustments */
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 :root {
   color-scheme: light dark;
 }
@@ -181,68 +397,7 @@ p {
   }
 }
 
-.dotsLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.dot {
-  position: absolute;
-  border-radius: 999px;
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 0.6;
-  animation-name: dotPulse;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  will-change: transform, opacity, filter;
-}
-
-@keyframes dotPulse {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(0.85);
-    opacity: 0.35;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.8);
-    opacity: 0.95;
-  }
-}
-
-.dotsLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.dot {
-  position: absolute;
-  border-radius: 999px;
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 0.6;
-  animation-name: dotPulse;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  will-change: transform, opacity, filter;
-  mix-blend-mode: screen; /* makes them glow into the art */
-}
-
-@keyframes dotPulse {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(0.75);
-    opacity: 0.25;
-    box-shadow: 0 0 0 rgba(255,255,255,0);
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(2.2);
-    opacity: 0.95;
-    box-shadow: 0 0 18px rgba(255,255,255,0.25);
-  }
-}
-
-.buildLabel{
+.buildLabel {
   position: fixed;
   bottom: 8px;
   right: 10px;
@@ -252,32 +407,102 @@ p {
   pointer-events: none;
 }
 
-.forceRefresh{
-  position: fixed;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+.forceRefresh {
+  display: block;
+  margin: 24px auto 40px;
   font-size: 12px;
   padding: 6px 10px;
   background: transparent;
-  border: 1px solid rgba(0,0,0,0.25);
+  border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 8px;
   opacity: 0.6;
-  z-index: 9999;
 }
 
-.forceRefresh:active{
+.forceRefresh:active {
   opacity: 1;
 }
 
-@media (prefers-color-scheme: dark){
-  .forceRefresh{
-    border-color: rgba(255,255,255,0.35);
+@media (prefers-color-scheme: dark) {
+  .forceRefresh {
+    border-color: rgba(255, 255, 255, 0.35);
     color: #111;
-    background: rgba(255,255,255,0.85);
+    background: rgba(255, 255, 255, 0.85);
   }
 }
 
-.shareCardWrapper .forceRefresh{
-  display: none;
+.reflectionInput {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  resize: vertical;
+  margin-bottom: 12px;
+  color: #111;
+}
+
+.historyCard {
+  max-width: 460px;
+  text-align: left;
+}
+
+.historyCard h2 {
+  text-align: center;
+}
+
+.journalList {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.journalEntry {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.journalDate {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.journalNote {
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.toastStack {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10000;
+  width: min(92vw, 420px);
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(20, 20, 20, 0.92);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: toastIn 0.25s ease;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

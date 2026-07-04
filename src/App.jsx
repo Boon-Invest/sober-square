@@ -1,15 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
+import { GRID, TOTAL, rowOf, colOf } from "./game/board";
+import {
+  newGameState,
+  hydrateState,
+  startNewGame,
+  fireShot,
+  detonateBomb,
+  revealIntel,
+  applyCheckIn,
+} from "./game/engine";
+import { todayKey } from "./game/utils";
+import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/sound";
+import { shareProgress } from "./game/share";
+import ShipIcon from "./components/ShipIcon";
 
-const DEFAULT_GRID = 3;
-
-const STORAGE_KEY = "sober_square_state";
+const STORAGE_KEY = "sober_square_battleship_v1";
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    return hydrateState(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -19,332 +31,239 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-}
-
-function safeArray(v) {
-  return Array.isArray(v) ? v : [];
-}
-
-function randFromSeed(seed) {
-  let t = seed + 0x6d2b79f5;
-  return () => {
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function makeArtCss(seed) {
-  const r = randFromSeed(seed);
-
-  const hue = Math.floor(r() * 360);
-  const hue2 = (hue + 80 + Math.floor(r() * 160)) % 360;
-  const hue3 = (hue2 + 40 + Math.floor(r() * 140)) % 360;
-
-  const a = 0.55 + r() * 0.25; // 0.55..0.80
-
-  const spot = (h, s, l, alpha) =>
-    `radial-gradient(circle at ${r() * 100}% ${r() * 100}%, hsla(${h},${s}%,${l}%,${alpha}), transparent ${45 + r() * 25}%)`;
-
-  const sweep = (deg, h1, h2) =>
-    `conic-gradient(from ${deg}deg at ${20 + r() * 60}% ${20 + r() * 60}%, hsla(${h1},85%,55%,${a}) 0deg, hsla(${h2},85%,50%,${a}) 120deg, hsla(${h1},85%,45%,${a}) 240deg, hsla(${h2},85%,55%,${a}) 360deg)`;
-
-  const base = `linear-gradient(${Math.floor(r() * 360)}deg, hsla(${hue},75%,14%,1), hsla(${hue2},75%,10%,1))`;
-
-  const vignette = `radial-gradient(circle at 50% 50%, transparent 35%, rgba(0,0,0,0.55) 85%)`;
-
-  const grain = `repeating-linear-gradient(
-  ${Math.floor(r() * 180)}deg,
-  rgba(255,255,255,0.03) 0px,
-  rgba(255,255,255,0.03) 0.7px,
-  rgba(0,0,0,0.03) 1.4px,
-  rgba(0,0,0,0.03) 2.1px
-)`;
-
-const glaze = `radial-gradient(circle at ${20 + r() * 60}% ${15 + r() * 55}%,
-  rgba(255,255,255,0.12),
-  transparent 55%
-)`;
-
-const spark = () =>
-  `radial-gradient(circle at ${r() * 100}% ${r() * 100}%,
-    hsla(${Math.floor(r() * 360)},95%,70%,0.9),
-    transparent 6%)`;
-
- const sparks = Array.from({ length: 18 }, spark);
-
- const voids = Array.from({ length: 6 }, () =>
-  `radial-gradient(circle at ${r() * 100}% ${r() * 100}%,
-    rgba(0,0,0,0.55),
-    transparent 40%)`
-);
-
-return [
-  vignette,
-  grain,
-  glaze,
-  ...sparks,
-  ...voids,
-  sweep(Math.floor(r() * 360), hue2, hue3),
-  spot(hue, 92, 62, 0.55),
-  spot(hue2, 90, 58, 0.45),
-  spot(hue3, 88, 54, 0.40),
-  base,
-].join(",");
-}
-
 export default function App() {
-  const BUILD = import.meta.env.VITE_BUILD || "dev";
-  
+  const BUILD = __BUILD_DATE__;
+
   function forceRefresh() {
     const url = new URL(window.location.href);
     url.searchParams.set("v", BUILD);
     url.searchParams.set("t", Date.now().toString());
     window.location.replace(url.toString());
   }
-  const devMode = import.meta.env.DEV; // ON in npm run dev, OFF in npm run build
 
-  const [modal, setModal] = useState(null);
-  const shareRef = useRef(null);
+  const [state, setState] = useState(() => loadState() ?? newGameState(null));
+  const [mode, setMode] = useState("fire");
+  const [toasts, setToasts] = useState([]);
+  const [reflectionOpen, setReflectionOpen] = useState(false);
+  const [reflectionNote, setReflectionNote] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [showRecordShare, setShowRecordShare] = useState(false);
 
-  const [seed, setSeed] = useState(() => {
-    const s = loadState();
-    return s?.seed ?? Math.floor(Math.random() * 1e9);
-  });
+  // Persist the freshly-generated board once so a reload before any action
+  // doesn't silently regenerate a new one.
+  useEffect(() => {
+    if (!localStorage.getItem(STORAGE_KEY)) saveState(state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const [revealed, setRevealed] = useState(() => {
-    const s = loadState();
-    return new Set(s?.revealed ?? []);
-  });
+  function persist(next) {
+    saveState(next);
+    setState(next);
+  }
 
-  const [answeredNo, setAnsweredNo] = useState(() => {
-    const s = loadState();
-    return s?.answeredNo ?? false;
-  });
-
-  const [lastCheckDate, setLastCheckDate] = useState(() => {
-    const s = loadState();
-    return s?.lastCheckDate ?? null;
-  });
-
-  const [lastRevealDate, setLastRevealDate] = useState(() => {
-    const s = loadState();
-    return s?.lastRevealDate ?? null;
-  });
-
-const [badges, setBadges] = useState(() => {
-  const s = loadState();
-  return safeArray(s?.badges);
-});
-
-  const [pendingBadge, setPendingBadge] = useState(null);
-
-  const [streakDays, setStreakDays] = useState(() => {
-  const s = loadState();
-  return Number.isFinite(s?.streakDays) ? s.streakDays : 0;
-});
-
-const [totalSoberDays, setTotalSoberDays] = useState(() => {
-  const s = loadState();
-  return Number.isFinite(s?.totalSoberDays) ? s.totalSoberDays : 0;
-});
-
-const [gridSize] = useState(() => {
-  const s = loadState();
-  const g = s?.gridSize;
-  return Number.isFinite(g) ? g : DEFAULT_GRID;
-});
-const GRID = gridSize;
-const TOTAL = GRID * GRID;
-
-  const background = useMemo(() => makeArtCss(seed), [seed]);
-
-  function showMessage(title, body) {
-    setModal({
-      title,
-      body,
-      actions: [{ label: "OK", onClick: () => setModal(null) }],
+  function pushToasts(messages) {
+    const entries = messages.map((msg) => ({ id: `${Date.now()}-${Math.random()}`, msg }));
+    setToasts((prev) => [...prev, ...entries]);
+    entries.forEach((entry) => {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== entry.id));
+      }, 4200);
     });
   }
 
-  function resetImage() {
-    setSeed(Math.floor(Math.random() * 1e9));
-    setRevealed(new Set());
-    setAnsweredNo(false);
-    setLastRevealDate(null);
+  function showToast(msg) {
+    pushToasts([msg]);
   }
 
-  async function shareCompletion(earned) {
-    const node = shareRef.current;
-    if (!node) return;
-
-    const { toPng } = await import("html-to-image");
-    const dataUrl = await toPng(node, { cacheBust: true });
-
-    const link = document.createElement("a");
-    link.download = `sober-square-badge-${earned.number}.png`;
-    link.href = dataUrl;
-    link.click();
+  function commit(next) {
+    persist(next);
+    if (next.events && next.events.length) {
+      pushToasts(next.events);
+      playEventSounds(next.events);
+      if (next.events.some((e) => e.includes("streak record"))) {
+        setShowRecordShare(true);
+      }
+    }
+    return next;
   }
 
-  // Persist state
-  useEffect(() => {
-    saveState({
-      seed,
-      revealed: Array.from(revealed),
-      answeredNo,
-      lastCheckDate,
-      lastRevealDate,
-      badges,
-      streakDays,
-      totalSoberDays,
-    });
-  }, [seed, revealed, answeredNo, lastCheckDate, lastRevealDate, badges, streakDays, totalSoberDays]);
+  function commitCheckIn(sober, note) {
+    commit(applyCheckIn(state, sober, note));
+  }
 
-  // Daily check-in modal blocks the app until answered
-  useEffect(() => {
+  function finishReflection(save) {
+    commitCheckIn(false, save ? reflectionNote.trim() : "");
+    setReflectionOpen(false);
+    setReflectionNote("");
+  }
+
+  // Daily check-in gate, then win/loss notice, derived fresh from state each render.
+  function getGateModal() {
     const today = todayKey();
-
-    if (lastCheckDate !== today) {
-      setAnsweredNo(false);
-
-      setModal({
+    if (state.lastCheckDate !== today) {
+      if (reflectionOpen) {
+        return {
+          title: "Anything to note?",
+          body: "Optional — jot down what happened. It's saved to your history, just for you.",
+          isReflection: true,
+        };
+      }
+      return {
         title: "Daily check-in",
         body: "Did you drink yesterday?",
         actions: [
-          {
-            label: "Yes (reset)",
-            onClick: () => {
-              setLastCheckDate(today);
-              setStreakDays(0);
-              resetImage();
-              setModal(null);
-            },
-          },
-          {
-            label: "No",
-            onClick: () => {
-              setLastCheckDate(today);
-              setAnsweredNo(true);
-              setStreakDays((d) => d + 1);
-              setTotalSoberDays((d) => d + 1);
-              setModal(null);
-            },
-          },
+          { label: "Yes, I drank", onClick: () => setReflectionOpen(true) },
+          { label: "No, stayed sober", onClick: () => commitCheckIn(true) },
         ],
-      });
-    }
-  }, [lastCheckDate]);
-
-  // Completion -> earn badge -> share or next
-  useEffect(() => {
-    if (revealed.size === TOTAL && !pendingBadge) {
-      const earned = {
-        id: `${todayKey()}-${seed}-${badges.length + 1}`,
-        number: safeArray(badges).length + 1,
-        date: todayKey(),
-        seed,
       };
-
-      setPendingBadge(earned);
-
-      setModal({
-        title: "Image completed 🎉",
-        body: `Badge #${earned.number} earned • ${totalSoberDays} days alcohol-free`,
+    }
+    if (state.status === "won") {
+      return {
+        title: "Fleet destroyed! 🎉",
+        body: `You sank every ship with ${60 - state.daysElapsed} day(s) to spare.`,
         actions: [
-          {
-            label: "Share",
-            onClick: async () => {
-              setBadges((prev) => [earned, ...safeArray(prev)]);
-              await shareCompletion(earned);
-              setPendingBadge(null);
-              resetImage();
-              setModal(null);
-            },
-          },
-          {
-            label: "Next image",
-            onClick: () => {
-              setBadges((prev) => [earned, ...safeArray(prev)]);
-              setPendingBadge(null);
-              resetImage();
-              setModal(null);
-            },
-          },
+          { label: "Start new game", onClick: () => commit(startNewGame(state)) },
         ],
-      });
+      };
     }
-  }, [revealed, pendingBadge, badges.length, seed]);
-
-  function revealCell(i) {
-    const today = todayKey();
-
-    if (lastCheckDate !== today) {
-      showMessage("Answer required", "Please complete today's check-in first.");
-      return;
+    if (state.status === "lost") {
+      return {
+        title: "Fleet not destroyed",
+        body: "60 days are up and enemy ships are still out there. Game over.",
+        actions: [
+          { label: "Start new game", onClick: () => commit(startNewGame(state)) },
+        ],
+      };
     }
-
-    if (!answeredNo) {
-      showMessage("Not unlocked", "You answered Yes today, so the image reset.");
-      return;
-    }
-
-    if (lastRevealDate === today) {
-      showMessage("Come back tomorrow", "You've already revealed a square today.");
-      return;
-    }
-
-    setRevealed((prev) => {
-      const next = new Set(prev);
-      next.add(i);
-      return next;
-    });
-
-    setLastRevealDate(today);
-    showMessage("Nice.", "Square revealed. See you tomorrow.");
+    return null;
   }
+
+  const activeModal = getGateModal();
+
+  function handleCellClick(i) {
+    if (mode === "fire") {
+      if (!["hidden", "spotted"].includes(state.cellStatus[i])) return;
+      if (state.shotsAvailable <= 0) {
+        showToast("No shots left. Stay sober to earn another guess.");
+        return;
+      }
+      const next = fireShot(state, i);
+      commit(next);
+      if (next.cellStatus[i] === "hit") playHit();
+      else if (next.cellStatus[i] === "miss") playMiss();
+    } else if (mode === "bomb") {
+      if (state.bombsAvailable <= 0) {
+        showToast("No bombs charged. Reach another 7-day streak to earn one.");
+        return;
+      }
+      commit(detonateBomb(state, i));
+      playBoom();
+    } else if (mode === "intel") {
+      if (state.intelAvailable <= 0) {
+        showToast("No intel charges. Reach another 21-day streak to earn one.");
+        return;
+      }
+      commit(revealIntel(state, i));
+      playPing();
+    }
+  }
+
+  async function handleShare() {
+    const result = await shareProgress({
+      highestStreak: state.highestStreak,
+      totalSoberDays: state.totalSoberDays,
+    });
+    if (result === "copied") showToast("Share text copied to your clipboard!");
+    else if (result === "unsupported") showToast("Sharing isn't supported on this browser.");
+    setShowRecordShare(false);
+  }
+
+  const daysRemaining = 60 - state.daysElapsed;
+  const bombProgress = state.streakDays % 7;
+  const intelProgress = state.streakDays % 21;
+  const tensionClass = daysRemaining <= 5 ? " critical" : daysRemaining <= 14 ? " tense" : "";
 
   return (
     <div className="page">
       <h1>Sober Square</h1>
       <div className="buildLabel">Build {BUILD}</div>
+      <p className="subtitle">Battleship: find the fleet within 60 days</p>
 
-      <p>Streak: {streakDays} days</p>
-      <p>Total alcohol-free days: {totalSoberDays}</p>
-      <p>Badges: {badges.length}</p>
+      <div className="statsGrid">
+        <div className="statCard">
+          <span className="statLabel">Current streak</span>
+          <span className="statValue">{state.streakDays}d</span>
+        </div>
+        <div className="statCard">
+          <span className="statLabel">Highest streak</span>
+          <span className="statValue">{state.highestStreak}d</span>
+        </div>
+        <div className="statCard">
+          <span className="statLabel">Total alcohol-free</span>
+          <span className="statValue">{state.totalSoberDays}d</span>
+        </div>
+        <div className="statCard">
+          <span className="statLabel">Days remaining</span>
+          <span className="statValue">{Math.max(0, daysRemaining)}/60</span>
+        </div>
+        <div className="statCard">
+          <span className="statLabel">Ships sunk (lifetime)</span>
+          <span className="statValue">{state.lifetimeShipsSunk}</span>
+        </div>
+        <div className="statCard">
+          <span className="statLabel">Fleets defeated</span>
+          <span className="statValue">{state.gamesWon}</span>
+        </div>
+      </div>
 
-      {devMode && (
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            justifyContent: "center",
-            marginBottom: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            onClick={() =>
-              setRevealed(new Set(Array.from({ length: TOTAL }, (_, i) => i)))
-            }
-          >
-            Dev: Complete image
-          </button>
-          <button onClick={() => resetImage()}>Dev: Reset image</button>
-          <button
-            onClick={() => {
-              // Force the daily check-in modal to show again for testing
-              setLastCheckDate("1900-01-01");
-            }}
-          >
-            Dev: Show check-in
-          </button>
+      <div className="utilityRow">
+        <button className="utilityBtn" onClick={() => setHistoryOpen(true)}>
+          History
+        </button>
+        <button className="utilityBtn" onClick={handleShare}>
+          Share progress
+        </button>
+      </div>
+
+      {showRecordShare && (
+        <div className="recordBanner">
+          <span>New streak record! Tell someone about it.</span>
+          <div className="recordBannerActions">
+            <button onClick={handleShare}>Share</button>
+            <button onClick={() => setShowRecordShare(false)}>Dismiss</button>
+          </div>
         </div>
       )}
 
-      <div className="art" style={{ backgroundImage: background }}>
+      <div className="resourceRow">
+        <button
+          className={`resourceBtn ${mode === "fire" ? "active" : ""}`}
+          onClick={() => setMode("fire")}
+        >
+          Fire ({state.shotsAvailable})
+        </button>
+        <button
+          className={`resourceBtn ${mode === "bomb" ? "active" : ""}`}
+          onClick={() => setMode("bomb")}
+          disabled={state.bombsAvailable <= 0}
+        >
+          Bomb ({state.bombsAvailable}) &middot; {bombProgress}/7
+        </button>
+        <button
+          className={`resourceBtn ${mode === "intel" ? "active" : ""}`}
+          onClick={() => setMode("intel")}
+          disabled={state.intelAvailable <= 0}
+        >
+          Intel ({state.intelAvailable}) &middot; {intelProgress}/21
+        </button>
+      </div>
+      <p className="modeHint">
+        {mode === "fire" && "Tap a hidden square to fire a single shot."}
+        {mode === "bomb" && "Tap a square to detonate a 5-cell cross around it."}
+        {mode === "intel" && "Tap a square to reveal the 3x3 area around it (no damage)."}
+      </p>
+
+      <div className={`board${tensionClass}`}>
         <div
           className="grid"
           style={{
@@ -352,59 +271,120 @@ const TOTAL = GRID * GRID;
             gridTemplateRows: `repeat(${GRID}, 1fr)`,
           }}
         >
-          {Array.from({ length: TOTAL }).map((_, i) => (
-            <button
-              key={i}
-              className={revealed.has(i) ? "cell revealed" : "cell"}
-              onClick={() => revealCell(i)}
-              aria-label={`square ${i + 1}`}
-            />
-          ))}
+          {Array.from({ length: TOTAL }).map((_, i) => {
+            const status = state.cellStatus[i];
+            const isLand = state.land.includes(i);
+            const isGreenery = state.greenery.includes(i);
+            let cls = "cell";
+            if (status === "hidden") cls += " fog";
+            else if (status === "spotted") cls += " spotted";
+            else if (status === "hit") cls += " hit";
+            else if (status === "sunk") cls += " sunk";
+            else cls += isLand ? " land" : " water";
+            if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
+
+            return (
+              <button
+                key={i}
+                className={cls}
+                onClick={() => handleCellClick(i)}
+                aria-label={`row ${rowOf(i) + 1} column ${colOf(i) + 1}`}
+              />
+            );
+          })}
         </div>
       </div>
 
-      <p>
-        {revealed.size}/{TOTAL} squares revealed
-      </p>
+      <div className="legend">
+        <span><i className="swatch fog" /> Fog</span>
+        <span><i className="swatch water" /> Water</span>
+        <span><i className="swatch land" /> Land</span>
+        <span><i className="swatch hit" /> Hit</span>
+        <span><i className="swatch sunk" /> Sunk</span>
+        <span><i className="swatch spotted" /> Sighted</span>
+      </div>
 
-      <button className="forceRefresh" onClick={forceRefresh} style={{ marginTop: 8 }}>
-      Refresh
+      <div className="fleetList">
+        <h2>Fleet</h2>
+        {state.ships.map((ship) => (
+          <div key={ship.id} className="fleetRow">
+            <span className="fleetName">{ship.name}</span>
+            <ShipIcon size={ship.size} hitCount={ship.hits.length} sunk={ship.sunk} />
+            <span className="fleetStatus">
+              {ship.sunk ? "Sunk" : `${ship.hits.length}/${ship.size} hit`}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <button className="forceRefresh" onClick={forceRefresh}>
+        Refresh
       </button>
 
-      {modal && (
+      <div className="toastStack">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast">
+            {t.msg}
+          </div>
+        ))}
+      </div>
+
+      {activeModal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard">
-            <h2>{modal.title}</h2>
-            <p>{modal.body}</p>
-            <div className="modalActions">
-              {modal.actions.map((a, idx) => (
-                <button key={idx} onClick={a.onClick}>
-                  {a.label}
-                </button>
-              ))}
-            </div>
+            <h2>{activeModal.title}</h2>
+            <p>{activeModal.body}</p>
+            {activeModal.isReflection ? (
+              <>
+                <textarea
+                  className="reflectionInput"
+                  value={reflectionNote}
+                  onChange={(e) => setReflectionNote(e.target.value)}
+                  placeholder="Optional notes..."
+                  rows={3}
+                />
+                <div className="modalActions">
+                  <button onClick={() => finishReflection(false)}>Skip</button>
+                  <button onClick={() => finishReflection(true)}>Save</button>
+                </div>
+              </>
+            ) : (
+              <div className="modalActions">
+                {activeModal.actions.map((a, idx) => (
+                  <button key={idx} onClick={a.onClick}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Hidden share card used for PNG export */}
-      <div className="shareCardWrapper">
-        <div
-          className="shareCard"
-          ref={shareRef}
-          style={{ backgroundImage: background }}
-        >
-          <div className="shareOverlay">
-            <div className="shareTitle">Sober Square</div>
-            <div className="shareSub">
-              Badge #{pendingBadge ? pendingBadge.number : badges.length + 1}
-            </div>
-                        <div className="shareSmall">
-              {GRID * GRID} days. One image revealed.
+      {historyOpen && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard historyCard">
+            <h2>Reflection history</h2>
+            {state.journal.length === 0 ? (
+              <p>No entries yet.</p>
+            ) : (
+              <div className="journalList">
+                {state.journal.map((entry, idx) => (
+                  <div key={idx} className="journalEntry">
+                    <div className="journalDate">
+                      {entry.date} &middot; streak was {entry.streakBefore}d
+                    </div>
+                    {entry.note && <div className="journalNote">{entry.note}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modalActions">
+              <button onClick={() => setHistoryOpen(false)}>Close</button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
