@@ -186,7 +186,6 @@ export default function App() {
   return (
     <div className="page">
       <h1>Sober Square</h1>
-      <div className="buildLabel">Build {BUILD}</div>
       <p className="subtitle">Battleship: find the fleet within 60 days</p>
 
       <div className="statsGrid">
@@ -317,9 +316,12 @@ export default function App() {
         ))}
       </div>
 
-      <button className="forceRefresh" onClick={forceRefresh}>
-        Refresh
-      </button>
+      <div className="footerRow">
+        <button className="forceRefresh" onClick={forceRefresh}>
+          Refresh
+        </button>
+        <div className="buildLabel">Build {BUILD}</div>
+      </div>
 
       <div className="toastStack">
         {toasts.map((t) => (
