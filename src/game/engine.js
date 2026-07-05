@@ -39,6 +39,7 @@ export function newGameState(prevProfile) {
     highestStreak: prevProfile?.highestStreak ?? 0,
     totalSoberDays: prevProfile?.totalSoberDays ?? 0,
     lastCheckDate: prevProfile?.lastCheckDate ?? null,
+    lastShareBonusDate: prevProfile?.lastShareBonusDate ?? null,
     recordBonusPending: prevProfile?.recordBonusPending ?? false,
     lifetimeShipsSunk: prevProfile?.lifetimeShipsSunk ?? 0,
     gamesWon: prevProfile?.gamesWon ?? 0,
@@ -64,12 +65,32 @@ export function hydrateState(loaded) {
     gamesWon: Number.isFinite(loaded.gamesWon) ? loaded.gamesWon : 0,
     gamesLost: Number.isFinite(loaded.gamesLost) ? loaded.gamesLost : 0,
     recordBonusPending: Boolean(loaded.recordBonusPending),
+    lastShareBonusDate: loaded.lastShareBonusDate ?? null,
     events: [],
   };
 }
 
 export function startNewGame(state) {
   return newGameState(state);
+}
+
+// Sharing progress earns a bonus shot, capped once per calendar day.
+// There's no way for a website to know who a native share sheet was sent
+// to, so this can't verify "a new friend" -- it's an honest once-a-day
+// nudge, not an anti-abuse system.
+export function claimShareBonus(state) {
+  const today = todayKey();
+  const next = cloneState(state);
+
+  if (state.lastShareBonusDate === today) {
+    next.events.push("You've already claimed today's share bonus. Come back tomorrow!");
+    return next;
+  }
+
+  next.lastShareBonusDate = today;
+  next.shotsAvailable += 1;
+  next.events.push("Thanks for sharing! +1 shot.");
+  return next;
 }
 
 function applyHitAt(next, cellIdx) {

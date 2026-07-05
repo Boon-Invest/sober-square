@@ -9,6 +9,7 @@ import {
   detonateBomb,
   revealIntel,
   applyCheckIn,
+  claimShareBonus,
 } from "./game/engine";
 import { todayKey } from "./game/utils";
 import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/sound";
@@ -48,6 +49,7 @@ export default function App() {
   const [reflectionNote, setReflectionNote] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showRecordShare, setShowRecordShare] = useState(false);
+  const [showNoShotsShare, setShowNoShotsShare] = useState(false);
 
   // Persist the freshly-generated board once so a reload before any action
   // doesn't silently regenerate a new one.
@@ -144,7 +146,11 @@ export default function App() {
     if (mode === "fire") {
       if (!["hidden", "spotted"].includes(state.cellStatus[i])) return;
       if (state.shotsAvailable <= 0) {
-        showToast("No shots left. Stay sober to earn another guess.");
+        if (state.lastShareBonusDate !== todayKey()) {
+          setShowNoShotsShare(true);
+        } else {
+          showToast("No shots left. Stay sober to earn another guess.");
+        }
         return;
       }
       const next = fireShot(state, i);
@@ -175,7 +181,13 @@ export default function App() {
     });
     if (result === "copied") showToast("Share text copied to your clipboard!");
     else if (result === "unsupported") showToast("Sharing isn't supported on this browser.");
+
+    if (result === "shared" || result === "copied") {
+      commit(claimShareBonus(state));
+    }
+
     setShowRecordShare(false);
+    setShowNoShotsShare(false);
   }
 
   const daysRemaining = 60 - state.daysElapsed;
@@ -230,6 +242,16 @@ export default function App() {
           <div className="recordBannerActions">
             <button onClick={handleShare}>Share</button>
             <button onClick={() => setShowRecordShare(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      {showNoShotsShare && (
+        <div className="recordBanner">
+          <span>Out of shots! Share your progress for a bonus one.</span>
+          <div className="recordBannerActions">
+            <button onClick={handleShare}>Share</button>
+            <button onClick={() => setShowNoShotsShare(false)}>Dismiss</button>
           </div>
         </div>
       )}
