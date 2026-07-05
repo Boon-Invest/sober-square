@@ -145,11 +145,14 @@ export function revealIntel(state, centerIdx) {
   return next;
 }
 
-// Rule 6: on every sober day (and, per clarification, on a relapse day too),
-// a random 3x3 patch of fog rolls back in. If it catches a damaged-but-not-sunk
-// ship, that ship redeploys to a fresh hidden spot and its damage is wiped.
-function applyFogEvent(next) {
-  const damagedShips = next.ships.filter((s) => !s.sunk && s.hits.length > 0);
+// Rule 6: a random 3x3 patch of fog rolls back in every day. On a relapse
+// day it deliberately hunts a damaged-but-not-sunk ship (guaranteed target
+// if one exists); on a sober day the patch is fully random, so a damaged
+// ship can still get caught and redeploy, but only by incidental overlap.
+function applyFogEvent(next, { targetDamaged = false } = {}) {
+  const damagedShips = targetDamaged
+    ? next.ships.filter((s) => !s.sunk && s.hits.length > 0)
+    : [];
 
   let block;
   if (damagedShips.length > 0) {
@@ -278,7 +281,7 @@ export function applyCheckIn(state, answeredSober, note) {
 
   if (state.status === "playing") {
     next.daysElapsed = Math.min(60, next.daysElapsed + 1);
-    applyFogEvent(next);
+    applyFogEvent(next, { targetDamaged: !answeredSober });
     checkWin(next);
     if (next.status === "won") {
       next.gamesWon += 1;
