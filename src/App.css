@@ -27,6 +27,36 @@ p {
   margin: 8px 0;
 }
 
+.installHint {
+  max-width: 480px;
+  margin: 0 auto 16px;
+  background: rgba(42, 111, 219, 0.1);
+  border: 1px solid rgba(42, 111, 219, 0.3);
+  border-radius: 12px;
+  padding: 10px 36px 10px 14px;
+  position: relative;
+  font-size: 13px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.installHintClose {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.installHintClose:hover {
+  opacity: 1;
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

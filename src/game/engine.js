@@ -40,6 +40,7 @@ export function newGameState(prevProfile) {
     totalSoberDays: prevProfile?.totalSoberDays ?? 0,
     lastCheckDate: prevProfile?.lastCheckDate ?? null,
     lastShareBonusDate: prevProfile?.lastShareBonusDate ?? null,
+    pwaBonusClaimed: prevProfile?.pwaBonusClaimed ?? false,
     recordBonusPending: prevProfile?.recordBonusPending ?? false,
     lifetimeShipsSunk: prevProfile?.lifetimeShipsSunk ?? 0,
     gamesWon: prevProfile?.gamesWon ?? 0,
@@ -66,6 +67,7 @@ export function hydrateState(loaded) {
     gamesLost: Number.isFinite(loaded.gamesLost) ? loaded.gamesLost : 0,
     recordBonusPending: Boolean(loaded.recordBonusPending),
     lastShareBonusDate: loaded.lastShareBonusDate ?? null,
+    pwaBonusClaimed: Boolean(loaded.pwaBonusClaimed),
     events: [],
   };
 }
@@ -90,6 +92,19 @@ export function claimShareBonus(state) {
   next.lastShareBonusDate = today;
   next.shotsAvailable += 1;
   next.events.push("Thanks for sharing! +1 shot.");
+  return next;
+}
+
+// One-time bonus for adding the app to the home screen. There's no install
+// event on iOS Safari, so this is claimed the moment we ever detect the app
+// running in standalone display mode -- see isStandalonePwa() in platform.js.
+export function claimPwaInstallBonus(state) {
+  if (state.pwaBonusClaimed) return state;
+
+  const next = cloneState(state);
+  next.pwaBonusClaimed = true;
+  next.shotsAvailable += 1;
+  next.events.push("Thanks for adding Sober Square to your home screen! +1 shot.");
   return next;
 }
 

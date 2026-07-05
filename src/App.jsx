@@ -10,13 +10,16 @@ import {
   revealIntel,
   applyCheckIn,
   claimShareBonus,
+  claimPwaInstallBonus,
 } from "./game/engine";
 import { todayKey } from "./game/utils";
 import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/sound";
 import { shareProgress } from "./game/share";
+import { isStandalonePwa, detectPlatform } from "./game/platform";
 import ShipIcon from "./components/ShipIcon";
 
 const STORAGE_KEY = "sober_square_battleship_v1";
+const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
 
 function loadState() {
   try {
@@ -50,6 +53,17 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showRecordShare, setShowRecordShare] = useState(false);
   const [showNoShotsShare, setShowNoShotsShare] = useState(false);
+  const [installDismissed, setInstallDismissed] = useState(
+    () => localStorage.getItem(INSTALL_HINT_KEY) === "1"
+  );
+
+  const showInstallHint = !isStandalonePwa() && !installDismissed;
+  const platform = detectPlatform();
+
+  function dismissInstallHint() {
+    localStorage.setItem(INSTALL_HINT_KEY, "1");
+    setInstallDismissed(true);
+  }
 
   // Persist the freshly-generated board once so a reload before any action
   // doesn't silently regenerate a new one.
@@ -77,8 +91,7 @@ export default function App() {
     pushToasts([msg]);
   }
 
-  function commit(next) {
-    persist(next);
+  function notifyEvents(next) {
     if (next.events && next.events.length) {
       pushToasts(next.events);
       playEventSounds(next.events);
@@ -86,8 +99,43 @@ export default function App() {
         setShowRecordShare(true);
       }
     }
+  }
+
+  function commit(next) {
+    persist(next);
+    notifyEvents(next);
     return next;
   }
+
+  // For triggers that fire from an effect/event listener rather than a click
+  // handler, where the closed-over `state` variable could be stale by the
+  // time it runs -- uses the functional setState form to always read fresh.
+  function commitViaUpdater(updater) {
+    setState((prev) => {
+      const next = updater(prev);
+      if (next === prev) return prev;
+      saveState(next);
+      notifyEvents(next);
+      return next;
+    });
+  }
+
+  // Grant the home-screen-install bonus the moment we ever detect the app
+  // running standalone (covers iOS, which has no install event at all), and
+  // also listen for the real-time Android/Chromium install signal.
+  useEffect(() => {
+    commitViaUpdater((prev) =>
+      isStandalonePwa() ? claimPwaInstallBonus(prev) : prev
+    );
+
+    function handleAppInstalled() {
+      commitViaUpdater((prev) => claimPwaInstallBonus(prev));
+    }
+
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => window.removeEventListener("appinstalled", handleAppInstalled);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function commitCheckIn(sober, note) {
     commit(applyCheckIn(state, sober, note));
@@ -199,6 +247,35 @@ export default function App() {
     <div className="page">
       <h1>Sober Square</h1>
       <p className="subtitle">Battleship: find the fleet within 60 days</p>
+
+      {showInstallHint && (
+        <div className="installHint">
+          {platform === "ios" && (
+            <span>
+              Add this to your home screen: tap the Share icon in Safari, then
+              &ldquo;Add to Home Screen&rdquo;.
+              {!state.pwaBonusClaimed && " Do it for a bonus shot!"}
+            </span>
+          )}
+          {platform === "android" && (
+            <span>
+              Add this to your home screen: tap the &#8942; menu in Chrome, then
+              &ldquo;Add to Home screen&rdquo; or &ldquo;Install app&rdquo;.
+              {!state.pwaBonusClaimed && " Do it for a bonus shot!"}
+            </span>
+          )}
+          {platform === "other" && (
+            <span>
+              Open this link on your phone and add it to your home screen for the
+              best experience.
+              {!state.pwaBonusClaimed && " You'll also get a bonus shot!"}
+            </span>
+          )}
+          <button className="installHintClose" onClick={dismissInstallHint} aria-label="Dismiss">
+            &times;
+          </button>
+        </div>
+      )}
 
       <div className="statsGrid">
         <div className="statCard">
