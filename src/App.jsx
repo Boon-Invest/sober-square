@@ -17,6 +17,7 @@ import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/s
 import { shareProgress } from "./game/share";
 import { isStandalonePwa, detectPlatform } from "./game/platform";
 import ShipIcon from "./components/ShipIcon";
+import HowToPlay from "./components/HowToPlay";
 
 const STORAGE_KEY = "sober_square_battleship_v1";
 const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
@@ -55,6 +56,10 @@ export default function App() {
   const [showNoShotsShare, setShowNoShotsShare] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(
     () => localStorage.getItem(INSTALL_HINT_KEY) === "1"
+  );
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(
+    () => !localStorage.getItem(STORAGE_KEY)
   );
 
   const showInstallHint = !isStandalonePwa() && !installDismissed;
@@ -245,7 +250,16 @@ export default function App() {
 
   return (
     <div className="page">
-      <h1>Sober Square</h1>
+      <div className="titleRow">
+        <h1>Sober Square</h1>
+        <button
+          className="helpButton"
+          onClick={() => setHowToPlayOpen(true)}
+          aria-label="How to play"
+        >
+          ?
+        </button>
+      </div>
       <p className="subtitle">Battleship: find the fleet within 60 days</p>
 
       {showInstallHint && (
@@ -430,7 +444,31 @@ export default function App() {
         ))}
       </div>
 
-      {activeModal && (
+      {showIntro && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard howToPlayCard">
+            <h2>Welcome aboard!</h2>
+            <HowToPlay />
+            <div className="modalActions">
+              <button onClick={() => setShowIntro(false)}>Got it, let's play</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showIntro && howToPlayOpen && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard howToPlayCard">
+            <h2>How to play</h2>
+            <HowToPlay />
+            <div className="modalActions">
+              <button onClick={() => setHowToPlayOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showIntro && !howToPlayOpen && activeModal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard">
             <h2>{activeModal.title}</h2>

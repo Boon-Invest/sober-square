@@ -18,6 +18,27 @@ h1 {
   margin-bottom: 4px;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.titleRow h1 {
+  margin-bottom: 0;
+}
+
+.helpButton {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .subtitle {
   margin-top: 0;
   opacity: 0.7;
@@ -382,11 +403,60 @@ p {
 .modalCard {
   width: 100%;
   max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
   background: white;
   border-radius: 16px;
   padding: 18px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
   color: #111;
+  box-sizing: border-box;
+}
+
+.howToPlayCard {
+  max-width: 540px;
+  text-align: left;
+}
+
+.howToPlayCard h2 {
+  text-align: center;
+}
+
+.howToPlay section {
+  margin-bottom: 14px;
+}
+
+.howToPlay h3 {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+}
+
+.howToPlay h4 {
+  margin: 10px 0 4px 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.howToPlay h4:first-of-type {
+  margin-top: 4px;
+}
+
+.howToPlay p {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.howToPlay ul,
+.howToPlay ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.howToPlay li {
+  margin-bottom: 4px;
 }
 
 .modalCard h2 {
