@@ -16,6 +16,7 @@ import { todayKey } from "./game/utils";
 import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/sound";
 import { shareProgress } from "./game/share";
 import { isStandalonePwa, detectPlatform } from "./game/platform";
+import { BOMB_MILESTONES, INTEL_MILESTONES, milestoneProgress } from "./game/milestones";
 import ShipIcon from "./components/ShipIcon";
 import HowToPlay from "./components/HowToPlay";
 
@@ -37,7 +38,7 @@ function saveState(state) {
 }
 
 export default function App() {
-  const BUILD = __BUILD_DATE__;
+  const BUILD = __BUILD_ID__;
 
   function forceRefresh() {
     const url = new URL(window.location.href);
@@ -212,14 +213,24 @@ export default function App() {
       else if (next.cellStatus[i] === "miss") playMiss();
     } else if (mode === "bomb") {
       if (state.bombsAvailable <= 0) {
-        showToast("No bombs charged. Reach another 7-day streak to earn one.");
+        const { next: nextMilestone } = milestoneProgress(state.streakDays, BOMB_MILESTONES);
+        showToast(
+          nextMilestone
+            ? `No bombs charged. Reach a ${nextMilestone}-day streak to earn one.`
+            : "No bombs charged."
+        );
         return;
       }
       commit(detonateBomb(state, i));
       playBoom();
     } else if (mode === "intel") {
       if (state.intelAvailable <= 0) {
-        showToast("No intel charges. Reach another 21-day streak to earn one.");
+        const { next: nextMilestone } = milestoneProgress(state.streakDays, INTEL_MILESTONES);
+        showToast(
+          nextMilestone
+            ? `No intel charges. Reach a ${nextMilestone}-day streak to earn one.`
+            : "No intel charges."
+        );
         return;
       }
       commit(revealIntel(state, i));
@@ -244,9 +255,22 @@ export default function App() {
   }
 
   const daysRemaining = 60 - state.daysElapsed;
-  const bombProgress = state.streakDays % 7;
-  const intelProgress = state.streakDays % 21;
+  const bombProgress = milestoneProgress(state.streakDays, BOMB_MILESTONES);
+  const intelProgress = milestoneProgress(state.streakDays, INTEL_MILESTONES);
   const tensionClass = daysRemaining <= 5 ? " critical" : daysRemaining <= 14 ? " tense" : "";
+
+  function getNextStepMessage() {
+    if (state.shotsAvailable > 0) {
+      return "Tap a hidden square on the board below to fire your shot.";
+    }
+    if (state.bombsAvailable > 0) {
+      return "You have a Bomb ready — switch to Bomb mode, then tap a square to use it.";
+    }
+    if (state.intelAvailable > 0) {
+      return "You have an Intel charge ready — switch to Intel mode to scout safely.";
+    }
+    return "Out of moves for now. Stay sober for tomorrow's shot, or share your progress for a bonus one.";
+  }
 
   return (
     <div className="page">
@@ -260,7 +284,11 @@ export default function App() {
           ?
         </button>
       </div>
-      <p className="subtitle">Battleship: find the fleet within 60 days</p>
+      <p className="subtitle">Battleships: find the fleet within 60 days</p>
+      <p className="soloNote">
+        Solo game, not multiplayer &mdash; there's no other player. A hidden
+        AI-placed fleet is waiting for you to find it.
+      </p>
 
       {showInstallHint && (
         <div className="installHint">
@@ -347,27 +375,47 @@ export default function App() {
         </div>
       )}
 
+      <div className="nextStepBanner">{getNextStepMessage()}</div>
+
       <div className="resourceRow">
-        <button
-          className={`resourceBtn ${mode === "fire" ? "active" : ""}`}
-          onClick={() => setMode("fire")}
-        >
-          Fire ({state.shotsAvailable})
-        </button>
-        <button
-          className={`resourceBtn ${mode === "bomb" ? "active" : ""}`}
-          onClick={() => setMode("bomb")}
-          disabled={state.bombsAvailable <= 0}
-        >
-          Bomb ({state.bombsAvailable}) &middot; {bombProgress}/7
-        </button>
-        <button
-          className={`resourceBtn ${mode === "intel" ? "active" : ""}`}
-          onClick={() => setMode("intel")}
-          disabled={state.intelAvailable <= 0}
-        >
-          Intel ({state.intelAvailable}) &middot; {intelProgress}/21
-        </button>
+        <div className={`resourceWrap ${state.shotsAvailable > 0 ? "ready" : ""}`}>
+          <button
+            className={`resourceBtn ${mode === "fire" ? "active" : ""}`}
+            onClick={() => setMode("fire")}
+          >
+            Fire ({state.shotsAvailable})
+          </button>
+        </div>
+        <div className={`resourceWrap ${state.bombsAvailable > 0 ? "ready" : ""}`}>
+          <button
+            className={`resourceBtn ${mode === "bomb" ? "active" : ""}`}
+            onClick={() => setMode("bomb")}
+            disabled={state.bombsAvailable <= 0}
+          >
+            Bomb ({state.bombsAvailable})
+          </button>
+          <div className="progressTrack">
+            <div className="progressFill" style={{ width: `${bombProgress.fraction * 100}%` }} />
+          </div>
+          <span className="progressLabel">
+            {bombProgress.next ? `Next: day ${bombProgress.next}` : "All earned"}
+          </span>
+        </div>
+        <div className={`resourceWrap ${state.intelAvailable > 0 ? "ready" : ""}`}>
+          <button
+            className={`resourceBtn ${mode === "intel" ? "active" : ""}`}
+            onClick={() => setMode("intel")}
+            disabled={state.intelAvailable <= 0}
+          >
+            Intel ({state.intelAvailable})
+          </button>
+          <div className="progressTrack">
+            <div className="progressFill" style={{ width: `${intelProgress.fraction * 100}%` }} />
+          </div>
+          <span className="progressLabel">
+            {intelProgress.next ? `Next: day ${intelProgress.next}` : "All earned"}
+          </span>
+        </div>
       </div>
       <p className="modeHint">
         {mode === "fire" && "Tap a hidden square to fire a single shot."}
@@ -388,17 +436,31 @@ export default function App() {
             const isLand = state.land.includes(i);
             const isGreenery = state.greenery.includes(i);
             let cls = "cell";
+            let style;
             if (status === "hidden") cls += " fog";
             else if (status === "spotted") cls += " spotted";
             else if (status === "hit") cls += " hit";
             else if (status === "sunk") cls += " sunk";
-            else cls += isLand ? " land" : " water";
+            else {
+              cls += isLand ? " land" : " water";
+              if (isLand) {
+                style = {
+                  "--tx1": `${(i * 37) % 100}%`,
+                  "--ty1": `${(i * 59) % 100}%`,
+                  "--tx2": `${(i * 71) % 100}%`,
+                  "--ty2": `${(i * 83) % 100}%`,
+                  "--tx3": `${(i * 13) % 100}%`,
+                  "--ty3": `${(i * 29) % 100}%`,
+                };
+              }
+            }
             if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
 
             return (
               <button
                 key={i}
                 className={cls}
+                style={style}
                 onClick={() => handleCellClick(i)}
                 aria-label={`row ${rowOf(i) + 1} column ${colOf(i) + 1}`}
               />

@@ -8,6 +8,7 @@ import {
 } from "./board";
 import { SHIP_DEFS } from "./ships";
 import { todayKey } from "./utils";
+import { BOMB_MILESTONES, INTEL_MILESTONES } from "./milestones";
 
 const SHOOTABLE = new Set(["hidden", "spotted"]);
 const SURPRISE_BONUS_CHANCE = 0.15;
@@ -294,13 +295,13 @@ export function applyCheckIn(state, answeredSober, note) {
       next.events.push("New streak record! Bonus shot earned for today.");
     }
 
-    if (next.streakDays % 7 === 0) {
+    if (BOMB_MILESTONES.includes(next.streakDays)) {
       next.bombsAvailable += 1;
-      next.events.push("7-day streak! A bomb charge is ready.");
+      next.events.push(`Day ${next.streakDays} streak! A bomb charge is ready.`);
     }
-    if (next.streakDays % 21 === 0) {
+    if (INTEL_MILESTONES.includes(next.streakDays)) {
       next.intelAvailable += 1;
-      next.events.push("21-day streak! An intel charge is ready.");
+      next.events.push(`Day ${next.streakDays} streak! An intel charge is ready.`);
     }
 
     rollSurpriseBonus(next);

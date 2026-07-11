@@ -1,5 +1,5 @@
 export function buildShareText({ highestStreak, totalSoberDays }) {
-  return `I'm on a ${highestStreak}-day sober streak (${totalSoberDays} alcohol-free days total) playing Sober Square, hunting a hidden fleet one sober day at a time. Come play with me:`;
+  return `I'm on a ${highestStreak}-day sober streak (${totalSoberDays} alcohol-free days total) playing Sober Square, a solo game where you hunt a hidden AI-placed fleet one sober day at a time. Try it yourself (it's not multiplayer, you'd start your own game):`;
 }
 
 // Uses the page's own origin so the shared link always points at wherever

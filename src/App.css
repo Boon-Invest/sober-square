@@ -41,7 +41,17 @@ h1 {
 
 .subtitle {
   margin-top: 0;
+  margin-bottom: 4px;
   opacity: 0.7;
+}
+
+.soloNote {
+  margin-top: 0;
+  font-size: 12px;
+  opacity: 0.6;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 p {
@@ -142,16 +152,38 @@ p {
   padding: 6px 10px;
 }
 
+.nextStepBanner {
+  max-width: 480px;
+  margin: 0 auto 12px;
+  background: rgba(42, 111, 219, 0.1);
+  border: 1px solid rgba(42, 111, 219, 0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a4a8a;
+}
+
 .resourceRow {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
   margin-bottom: 6px;
+  align-items: flex-start;
+}
+
+.resourceWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 118px;
 }
 
 .resourceBtn {
   font-size: 13px;
+  width: 100%;
 }
 
 .resourceBtn.active {
@@ -162,6 +194,48 @@ p {
 .resourceBtn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.resourceWrap.ready .resourceBtn {
+  border-color: #3fae4a;
+  animation: readyPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes readyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 174, 74, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(63, 174, 74, 0); }
+}
+
+.progressTrack {
+  width: 100%;
+  height: 7px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    #4caf50 0px,
+    #4caf50 8px,
+    #6fc46f 8px,
+    #6fc46f 16px
+  );
+  background-size: 200% 100%;
+  animation: fillFlow 1.4s linear infinite;
+  transition: width 0.4s ease;
+}
+
+@keyframes fillFlow {
+  from { background-position: 0 0; }
+  to { background-position: -32px 0; }
+}
+
+.progressLabel {
+  font-size: 10px;
+  opacity: 0.6;
 }
 
 .modeHint {
@@ -241,17 +315,20 @@ p {
 }
 
 .cell.land {
-  background-color: #d8c27a;
+  background-color: #cdb779;
   cursor: default;
   position: relative;
+  background-image:
+    radial-gradient(circle at var(--tx1) var(--ty1), rgba(101, 82, 42, 0.35) 0%, transparent 42%),
+    radial-gradient(circle at var(--tx2) var(--ty2), rgba(228, 210, 158, 0.55) 0%, transparent 48%),
+    radial-gradient(circle at var(--tx3) var(--ty3), rgba(150, 125, 70, 0.3) 0%, transparent 38%);
 }
 
-.cell.land.greenery::after {
-  content: "";
-  position: absolute;
-  inset: 25%;
-  border-radius: 50%;
-  background: #4a7c3f;
+.cell.land.greenery {
+  background-image:
+    radial-gradient(circle at var(--tx1) var(--ty1), rgba(74, 124, 63, 0.5) 0%, transparent 52%),
+    radial-gradient(circle at var(--tx2) var(--ty2), rgba(228, 210, 158, 0.4) 0%, transparent 46%),
+    radial-gradient(circle at var(--tx3) var(--ty3), rgba(101, 82, 42, 0.3) 0%, transparent 38%);
 }
 
 .cell.hit {

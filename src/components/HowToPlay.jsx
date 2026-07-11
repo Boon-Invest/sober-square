@@ -1,3 +1,5 @@
+import { BOMB_MILESTONES, INTEL_MILESTONES } from "../game/milestones";
+
 export default function HowToPlay() {
   return (
     <div className="howToPlay">
@@ -8,6 +10,12 @@ export default function HowToPlay() {
           squares), 2 Battle Cruisers (3 squares each), and 4 Small Subs (2
           squares each) &mdash; 19 ship squares in total, plus scattered sandy
           islands. Find and sink the entire fleet within 60 days.
+        </p>
+        <p>
+          This is a solo game, not multiplayer &mdash; there's no other
+          player and no one else to compete against. A hidden,
+          computer-placed fleet is waiting for you alone to find, using your
+          own sobriety streak to fuel the hunt.
         </p>
       </section>
 
@@ -40,10 +48,13 @@ export default function HowToPlay() {
       <section>
         <h3>What streaks get you</h3>
         <ul>
-          <li>Every 7-day streak &rarr; +1 Bomb (damages a 5-square cross).</li>
           <li>
-            Every 21-day streak &rarr; +1 Intel charge (reveals a 3&times;3
-            area &mdash; shows what's there, no damage).
+            Bomb charges at day {BOMB_MILESTONES.join(", ")} of your streak
+            (damages a 5-square cross).
+          </li>
+          <li>
+            Intel charges at day {INTEL_MILESTONES.join(", ")} of your streak
+            (reveals a 3&times;3 area &mdash; shows what's there, no damage).
           </li>
           <li>Beat your personal best streak &rarr; +1 bonus shot, that day only.</li>
           <li>Share your progress &rarr; +1 shot, once per day.</li>
