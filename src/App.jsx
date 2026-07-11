@@ -23,6 +23,11 @@ import HowToPlay from "./components/HowToPlay";
 const STORAGE_KEY = "sober_square_battleship_v1";
 const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
 
+// Logo badge: a 3x3 grid glyph (miniature radar grid), not a lettered mark.
+const LOGO_DOT_CLASSES = ["", "edge", "", "edge", "center", "edge", "", "edge", ""];
+const COL_LABELS = Array.from({ length: GRID }, (_, i) => String.fromCharCode(65 + i));
+const ROW_LABELS = Array.from({ length: GRID }, (_, i) => String(i + 1));
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -159,35 +164,35 @@ export default function App() {
     if (state.lastCheckDate !== today) {
       if (reflectionOpen) {
         return {
-          title: "Anything to note?",
-          body: "Optional — jot down what happened. It's saved to your history, just for you.",
+          title: "ANYTHING TO LOG?",
+          body: "Optional - saved to your private log only.",
           isReflection: true,
         };
       }
       return {
-        title: "Daily check-in",
+        title: "DAILY DEBRIEF",
         body: "Did you drink yesterday?",
         actions: [
-          { label: "Yes, I drank", onClick: () => setReflectionOpen(true) },
-          { label: "No, stayed sober", onClick: () => commitCheckIn(true) },
+          { label: "Yes, I drank", variant: "secondary", onClick: () => setReflectionOpen(true) },
+          { label: "No, stayed sober", variant: "primary", onClick: () => commitCheckIn(true) },
         ],
       };
     }
     if (state.status === "won") {
       return {
-        title: "Fleet destroyed! 🎉",
+        title: "FLEET NEUTRALIZED 🎉",
         body: `You sank every ship with ${60 - state.daysElapsed} day(s) to spare.`,
         actions: [
-          { label: "Start new game", onClick: () => commit(startNewGame(state)) },
+          { label: "Deploy new mission", variant: "primary", onClick: () => commit(startNewGame(state)) },
         ],
       };
     }
     if (state.status === "lost") {
       return {
-        title: "Fleet not destroyed",
-        body: "60 days are up and enemy ships are still out there. Game over.",
+        title: "MISSION TIMED OUT",
+        body: "60 days are up and enemy ships are still out there.",
         actions: [
-          { label: "Start new game", onClick: () => commit(startNewGame(state)) },
+          { label: "Deploy new mission", variant: "primary", onClick: () => commit(startNewGame(state)) },
         ],
       };
     }
@@ -243,7 +248,7 @@ export default function App() {
       highestStreak: state.highestStreak,
       totalSoberDays: state.totalSoberDays,
     });
-    if (result === "copied") showToast("Share text copied to your clipboard!");
+    if (result === "copied") showToast("Broadcast copied to your clipboard!");
     else if (result === "unsupported") showToast("Sharing isn't supported on this browser.");
 
     if (result === "shared" || result === "copied") {
@@ -261,21 +266,31 @@ export default function App() {
 
   function getNextStepMessage() {
     if (state.shotsAvailable > 0) {
-      return "Tap a hidden square on the board below to fire your shot.";
+      return "Tap a hidden square on the board to fire.";
     }
     if (state.bombsAvailable > 0) {
-      return "You have a Bomb ready — switch to Bomb mode, then tap a square to use it.";
+      return "Bomb ready - switch modes, tap a square.";
     }
     if (state.intelAvailable > 0) {
-      return "You have an Intel charge ready — switch to Intel mode to scout safely.";
+      return "Intel ready - switch modes to scout safely.";
     }
-    return "Out of moves for now. Stay sober for tomorrow's shot, or share your progress for a bonus one.";
+    return "Out of moves. Stay sober for tomorrow's shot, or broadcast for a bonus.";
   }
 
   return (
     <div className="page">
+      <div className="scanOverlay" />
+
       <div className="titleRow">
-        <h1>Sober Square</h1>
+        <div className="logoBadge">
+          {LOGO_DOT_CLASSES.map((cls, idx) => (
+            <span key={idx} className={`logoDot ${cls}`} />
+          ))}
+        </div>
+        <div className="wordmarkWrap">
+          <div className="wordmark">SOBER SQUARE</div>
+          <div className="eyebrow">ATTACK RADAR CONSOLE</div>
+        </div>
         <button
           className="helpButton"
           onClick={() => setHowToPlayOpen(true)}
@@ -284,33 +299,29 @@ export default function App() {
           ?
         </button>
       </div>
-      <p className="subtitle">Battleships: find the fleet within 60 days</p>
       <p className="soloNote">
-        Solo game, not multiplayer &mdash; there's no other player. A hidden
-        AI-placed fleet is waiting for you to find it.
+        SOLO OP &middot; no other player - a hidden AI-placed fleet awaits your orders.
       </p>
 
       {showInstallHint && (
         <div className="installHint">
+          <span className="blinkDot" />
           {platform === "ios" && (
             <span>
-              Add this to your home screen: tap the Share icon in Safari, then
-              &ldquo;Add to Home Screen&rdquo;.
-              {!state.pwaBonusClaimed && " Do it for a bonus shot!"}
+              Install: tap Share in Safari &rarr; &ldquo;Add to Home Screen&rdquo;.
+              {!state.pwaBonusClaimed && " +1 shot for doing it!"}
             </span>
           )}
           {platform === "android" && (
             <span>
-              Add this to your home screen: tap the &#8942; menu in Chrome, then
-              &ldquo;Add to Home screen&rdquo; or &ldquo;Install app&rdquo;.
-              {!state.pwaBonusClaimed && " Do it for a bonus shot!"}
+              Install: &#8942; menu in Chrome &rarr; &ldquo;Add to Home screen&rdquo;.
+              {!state.pwaBonusClaimed && " +1 shot for doing it!"}
             </span>
           )}
           {platform === "other" && (
             <span>
-              Open this link on your phone and add it to your home screen for the
-              best experience.
-              {!state.pwaBonusClaimed && " You'll also get a bonus shot!"}
+              Add to your home screen for the best experience.
+              {!state.pwaBonusClaimed && " Bonus shot included!"}
             </span>
           )}
           <button className="installHintClose" onClick={dismissInstallHint} aria-label="Dismiss">
@@ -321,45 +332,45 @@ export default function App() {
 
       <div className="statsGrid">
         <div className="statCard">
-          <span className="statLabel">Current streak</span>
+          <span className="statLabel">Streak</span>
           <span className="statValue">{state.streakDays}d</span>
         </div>
         <div className="statCard">
-          <span className="statLabel">Highest streak</span>
+          <span className="statLabel">Best</span>
           <span className="statValue">{state.highestStreak}d</span>
         </div>
         <div className="statCard">
-          <span className="statLabel">Total alcohol-free</span>
+          <span className="statLabel">Dry total</span>
           <span className="statValue">{state.totalSoberDays}d</span>
         </div>
         <div className="statCard">
-          <span className="statLabel">Days remaining</span>
+          <span className="statLabel">Clock</span>
           <span className="statValue">{Math.max(0, daysRemaining)}/60</span>
         </div>
         <div className="statCard">
-          <span className="statLabel">Ships sunk (lifetime)</span>
+          <span className="statLabel">Sunk</span>
           <span className="statValue">{state.lifetimeShipsSunk}</span>
         </div>
         <div className="statCard">
-          <span className="statLabel">Fleets defeated</span>
+          <span className="statLabel">Cleared</span>
           <span className="statValue">{state.gamesWon}</span>
         </div>
       </div>
 
       <div className="utilityRow">
         <button className="utilityBtn" onClick={() => setHistoryOpen(true)}>
-          History
+          &#9702; LOG
         </button>
         <button className="utilityBtn" onClick={handleShare}>
-          Share progress
+          &#9703; BROADCAST
         </button>
       </div>
 
       {showRecordShare && (
         <div className="recordBanner">
-          <span>New streak record! Tell someone about it.</span>
+          <span>NEW RECORD STREAK - broadcast the win?</span>
           <div className="recordBannerActions">
-            <button onClick={handleShare}>Share</button>
+            <button onClick={handleShare}>Broadcast</button>
             <button onClick={() => setShowRecordShare(false)}>Dismiss</button>
           </div>
         </div>
@@ -367,135 +378,164 @@ export default function App() {
 
       {showNoShotsShare && (
         <div className="recordBanner">
-          <span>Out of shots! Share your progress for a bonus one.</span>
+          <span>OUT OF SHOTS - broadcast for a bonus round</span>
           <div className="recordBannerActions">
-            <button onClick={handleShare}>Share</button>
+            <button onClick={handleShare}>Broadcast</button>
             <button onClick={() => setShowNoShotsShare(false)}>Dismiss</button>
           </div>
         </div>
       )}
 
-      <div className="nextStepBanner">{getNextStepMessage()}</div>
+      <div className="nextStepBanner">
+        <span className="blinkDot" />
+        <span className="ordersLabel">ORDERS</span>
+        <span>{getNextStepMessage()}</span>
+      </div>
 
       <div className="resourceRow">
         <div className={`resourceWrap ${state.shotsAvailable > 0 ? "ready" : ""}`}>
           <button
-            className={`resourceBtn ${mode === "fire" ? "active" : ""}`}
+            className={`resourceBtn fire ${mode === "fire" ? "active" : ""}`}
             onClick={() => setMode("fire")}
           >
-            Fire ({state.shotsAvailable})
+            <span className="resIcon">&#9678;</span>FIRE
+            <span className="resCount">{state.shotsAvailable}</span>
           </button>
         </div>
         <div className={`resourceWrap ${state.bombsAvailable > 0 ? "ready" : ""}`}>
           <button
-            className={`resourceBtn ${mode === "bomb" ? "active" : ""}`}
+            className={`resourceBtn bomb ${mode === "bomb" ? "active" : ""}`}
             onClick={() => setMode("bomb")}
             disabled={state.bombsAvailable <= 0}
           >
-            Bomb ({state.bombsAvailable})
+            <span className="resIcon">&#10022;</span>BOMB
+            <span className="resCount">{state.bombsAvailable}</span>
           </button>
           <div className="progressTrack">
-            <div className="progressFill" style={{ width: `${bombProgress.fraction * 100}%` }} />
+            <div className="progressFill bomb" style={{ width: `${bombProgress.fraction * 100}%` }} />
           </div>
           <span className="progressLabel">
-            {bombProgress.next ? `Next: day ${bombProgress.next}` : "All earned"}
+            {bombProgress.next ? `NEXT D${bombProgress.next}` : "MAXED"}
           </span>
         </div>
         <div className={`resourceWrap ${state.intelAvailable > 0 ? "ready" : ""}`}>
           <button
-            className={`resourceBtn ${mode === "intel" ? "active" : ""}`}
+            className={`resourceBtn intel ${mode === "intel" ? "active" : ""}`}
             onClick={() => setMode("intel")}
             disabled={state.intelAvailable <= 0}
           >
-            Intel ({state.intelAvailable})
+            <span className="resIcon">&#9670;</span>INTEL
+            <span className="resCount">{state.intelAvailable}</span>
           </button>
           <div className="progressTrack">
-            <div className="progressFill" style={{ width: `${intelProgress.fraction * 100}%` }} />
+            <div className="progressFill intel" style={{ width: `${intelProgress.fraction * 100}%` }} />
           </div>
           <span className="progressLabel">
-            {intelProgress.next ? `Next: day ${intelProgress.next}` : "All earned"}
+            {intelProgress.next ? `NEXT D${intelProgress.next}` : "MAXED"}
           </span>
         </div>
       </div>
       <p className="modeHint">
         {mode === "fire" && "Tap a hidden square to fire a single shot."}
-        {mode === "bomb" && "Tap a square to detonate a 5-cell cross around it."}
-        {mode === "intel" && "Tap a square to reveal the 3x3 area around it (no damage)."}
+        {mode === "bomb" && "Tap a square to detonate a 5-cell cross."}
+        {mode === "intel" && "Tap a square to reveal a 3×3 area, no damage."}
       </p>
 
-      <div className={`board${tensionClass}`}>
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(${GRID}, 1fr)`,
-            gridTemplateRows: `repeat(${GRID}, 1fr)`,
-          }}
-        >
-          {Array.from({ length: TOTAL }).map((_, i) => {
-            const status = state.cellStatus[i];
-            const isLand = state.land.includes(i);
-            const isGreenery = state.greenery.includes(i);
-            let cls = "cell";
-            let style;
-            if (status === "hidden") cls += " fog";
-            else if (status === "spotted") cls += " spotted";
-            else if (status === "hit") cls += " hit";
-            else if (status === "sunk") cls += " sunk";
-            else {
-              cls += isLand ? " land" : " water";
-              if (isLand) {
-                style = {
-                  "--tx1": `${(i * 37) % 100}%`,
-                  "--ty1": `${(i * 59) % 100}%`,
-                  "--tx2": `${(i * 71) % 100}%`,
-                  "--ty2": `${(i * 83) % 100}%`,
-                  "--tx3": `${(i * 13) % 100}%`,
-                  "--ty3": `${(i * 29) % 100}%`,
-                };
-              }
-            }
-            if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
+      <div className="boardFrame">
+        <div className="colRuler">
+          <span className="rulerCell" />
+          {COL_LABELS.map((l, idx) => (
+            <span key={idx} className="rulerCell">{l}</span>
+          ))}
+        </div>
+        <div className="boardRowWrap">
+          <div className="rowRuler">
+            {ROW_LABELS.map((l, idx) => (
+              <span key={idx} className="rulerCell">{l}</span>
+            ))}
+          </div>
+          <div className={`board${tensionClass}`}>
+            <div className="radarSweep" />
+            <div className="cornerBracket tl" />
+            <div className="cornerBracket tr" />
+            <div className="cornerBracket bl" />
+            <div className="cornerBracket br" />
+            <div
+              className="grid"
+              style={{
+                gridTemplateColumns: `repeat(${GRID}, 1fr)`,
+                gridTemplateRows: `repeat(${GRID}, 1fr)`,
+              }}
+            >
+              {Array.from({ length: TOTAL }).map((_, i) => {
+                const status = state.cellStatus[i];
+                const isLand = state.land.includes(i);
+                const isGreenery = state.greenery.includes(i);
+                let cls = "cell";
+                let style;
+                if (status === "hidden") cls += " fog";
+                else if (status === "spotted") cls += " spotted";
+                else if (status === "hit") cls += " hit";
+                else if (status === "sunk") cls += " sunk";
+                else {
+                  cls += isLand ? " land" : " water";
+                  if (isLand) {
+                    style = {
+                      "--tx1": `${(i * 37) % 100}%`,
+                      "--ty1": `${(i * 59) % 100}%`,
+                      "--tx2": `${(i * 71) % 100}%`,
+                      "--ty2": `${(i * 83) % 100}%`,
+                      "--tx3": `${(i * 13) % 100}%`,
+                      "--ty3": `${(i * 29) % 100}%`,
+                    };
+                  }
+                }
+                if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
 
-            return (
-              <button
-                key={i}
-                className={cls}
-                style={style}
-                onClick={() => handleCellClick(i)}
-                aria-label={`row ${rowOf(i) + 1} column ${colOf(i) + 1}`}
-              />
-            );
-          })}
+                return (
+                  <button
+                    key={i}
+                    className={cls}
+                    style={style}
+                    onClick={() => handleCellClick(i)}
+                    aria-label={`row ${rowOf(i) + 1} column ${colOf(i) + 1}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="legend">
-        <span><i className="swatch fog" /> Fog</span>
-        <span><i className="swatch water" /> Water</span>
-        <span><i className="swatch land" /> Land</span>
-        <span><i className="swatch hit" /> Hit</span>
-        <span><i className="swatch sunk" /> Sunk</span>
-        <span><i className="swatch spotted" /> Sighted</span>
+        <span><i className="swatch fog" />FOG</span>
+        <span><i className="swatch water" />WATER</span>
+        <span><i className="swatch land" />LAND</span>
+        <span><i className="swatch hit" />HIT</span>
+        <span><i className="swatch sunk" />SUNK</span>
+        <span><i className="swatch spotted" />SIGHTED</span>
       </div>
 
       <div className="fleetList">
-        <h2>Fleet</h2>
-        {state.ships.map((ship) => (
-          <div key={ship.id} className="fleetRow">
-            <span className="fleetName">{ship.name}</span>
-            <ShipIcon size={ship.size} hitCount={ship.hits.length} sunk={ship.sunk} />
-            <span className="fleetStatus">
-              {ship.sunk ? "Sunk" : `${ship.hits.length}/${ship.size} hit`}
-            </span>
-          </div>
-        ))}
+        <h2>Target roster</h2>
+        {state.ships.map((ship) => {
+          const statusClass = ship.sunk ? "sunk" : ship.hits.length > 0 ? "damaged" : "healthy";
+          const statusText = ship.sunk ? "SUNK" : `${ship.hits.length}/${ship.size} HIT`;
+          return (
+            <div key={ship.id} className="fleetRow">
+              <span className="fleetName">{ship.name}</span>
+              <ShipIcon size={ship.size} hitCount={ship.hits.length} sunk={ship.sunk} />
+              <span className={`fleetStatus ${statusClass}`}>{statusText}</span>
+            </div>
+          );
+        })}
       </div>
 
       <div className="footerRow">
         <button className="forceRefresh" onClick={forceRefresh}>
           Refresh
         </button>
-        <div className="buildLabel">Build {BUILD}</div>
+        <div className="buildLabel">BUILD {BUILD}</div>
       </div>
 
       <div className="toastStack">
@@ -509,10 +549,13 @@ export default function App() {
       {showIntro && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard howToPlayCard">
-            <h2>Welcome aboard!</h2>
+            <div className="modalCorner" />
+            <h2>Welcome aboard, operator</h2>
             <HowToPlay />
             <div className="modalActions">
-              <button onClick={() => setShowIntro(false)}>Got it, let's play</button>
+              <button className="primary" onClick={() => setShowIntro(false)}>
+                Begin mission
+              </button>
             </div>
           </div>
         </div>
@@ -521,10 +564,12 @@ export default function App() {
       {!showIntro && howToPlayOpen && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard howToPlayCard">
-            <h2>How to play</h2>
+            <h2>Field manual</h2>
             <HowToPlay />
             <div className="modalActions">
-              <button onClick={() => setHowToPlayOpen(false)}>Close</button>
+              <button className="primary" onClick={() => setHowToPlayOpen(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -545,14 +590,18 @@ export default function App() {
                   rows={3}
                 />
                 <div className="modalActions">
-                  <button onClick={() => finishReflection(false)}>Skip</button>
-                  <button onClick={() => finishReflection(true)}>Save</button>
+                  <button className="secondary" onClick={() => finishReflection(false)}>
+                    Skip
+                  </button>
+                  <button className="primary" onClick={() => finishReflection(true)}>
+                    Save
+                  </button>
                 </div>
               </>
             ) : (
               <div className="modalActions">
                 {activeModal.actions.map((a, idx) => (
-                  <button key={idx} onClick={a.onClick}>
+                  <button key={idx} className={a.variant} onClick={a.onClick}>
                     {a.label}
                   </button>
                 ))}
@@ -565,7 +614,7 @@ export default function App() {
       {historyOpen && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard historyCard">
-            <h2>Reflection history</h2>
+            <h2>Mission log</h2>
             {state.journal.length === 0 ? (
               <p>No entries yet.</p>
             ) : (
@@ -581,7 +630,9 @@ export default function App() {
               </div>
             )}
             <div className="modalActions">
-              <button onClick={() => setHistoryOpen(false)}>Close</button>
+              <button className="primary" onClick={() => setHistoryOpen(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
