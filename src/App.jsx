@@ -49,13 +49,6 @@ function saveState(state) {
 export default function App() {
   const BUILD = __BUILD_ID__;
 
-  function forceRefresh() {
-    const url = new URL(window.location.href);
-    url.searchParams.set("v", BUILD);
-    url.searchParams.set("t", Date.now().toString());
-    window.location.replace(url.toString());
-  }
-
   const [state, setState] = useState(() => loadState() ?? newGameState(null));
   const [mode, setMode] = useState("fire");
   const [toasts, setToasts] = useState([]);
@@ -478,9 +471,6 @@ export default function App() {
           ?
         </button>
       </div>
-      <p className="soloNote">
-        SOLO OP &middot; no other player - a hidden AI-placed fleet awaits your orders.
-      </p>
 
       {showInstallHint && (
         <div className="installHint">
@@ -720,9 +710,6 @@ export default function App() {
       </div>
 
       <div className="footerRow">
-        <button className="forceRefresh" onClick={forceRefresh}>
-          Refresh
-        </button>
         <div className="buildLabel">BUILD {BUILD}</div>
       </div>
 
