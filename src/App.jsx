@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { GRID, TOTAL, rowOf, colOf } from "./game/board";
+import { GRID, TOTAL, rowOf, colOf, crossCells, block3x3 } from "./game/board";
 import {
   newGameState,
   hydrateState,
@@ -11,6 +11,10 @@ import {
   applyCheckIn,
   claimShareBonus,
   claimPwaInstallBonus,
+  advanceTutorialStep,
+  grantTutorialStarterKit,
+  grantTutorialBonusShots,
+  TUTORIAL_DONE,
 } from "./game/engine";
 import { todayKey } from "./game/utils";
 import { playHit, playMiss, playBoom, playPing, playEventSounds } from "./game/sound";
@@ -67,6 +71,14 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(
     () => !localStorage.getItem(STORAGE_KEY)
   );
+  const [actionResult, setActionResult] = useState(null);
+  const [pendingLoot, setPendingLoot] = useState(null);
+  const [flashTargets, setFlashTargets] = useState([]);
+
+  function flashButtons(targets) {
+    setFlashTargets(targets);
+    setTimeout(() => setFlashTargets([]), 5000);
+  }
 
   const showInstallHint = !isStandalonePwa() && !installDismissed;
   const platform = detectPlatform();
@@ -201,6 +213,162 @@ export default function App() {
 
   const activeModal = getGateModal();
 
+  // What to do next, plus a nudge if a bomb/intel milestone is within reach.
+  function buildEncouragement(nextState) {
+    let action;
+    if (nextState.shotsAvailable > 0) {
+      action = `You've got ${nextState.shotsAvailable} shot${nextState.shotsAvailable > 1 ? "s" : ""} left - take another!`;
+    } else if (nextState.bombsAvailable > 0) {
+      action = "No shots left, but you've got a Bomb ready - switch modes and use it!";
+    } else if (nextState.intelAvailable > 0) {
+      action = "No shots left - try your Intel charge to scout safely.";
+    } else {
+      action = "Out of moves for now. Stay sober for tomorrow's shot, or broadcast for a bonus one.";
+    }
+
+    const bombP = milestoneProgress(nextState.streakDays, BOMB_MILESTONES);
+    const intelP = milestoneProgress(nextState.streakDays, INTEL_MILESTONES);
+    const gaps = [];
+    if (bombP.next) gaps.push({ gap: bombP.next - nextState.streakDays, label: "Bomb" });
+    if (intelP.next) gaps.push({ gap: intelP.next - nextState.streakDays, label: "Intel" });
+    // Surface every milestone within reach, not just the closest one -- an
+    // approaching Intel charge is just as worth calling out as a Bomb, since
+    // its 3x3 reveal is a big edge against the fleet in its own right.
+    const nearby = gaps.filter((g) => g.gap > 0 && g.gap <= 2).sort((a, b) => a.gap - b.gap);
+    for (const g of nearby) {
+      action += ` Only ${g.gap} more sober day${g.gap > 1 ? "s" : ""} until your next ${g.label} charge!`;
+    }
+
+    return action;
+  }
+
+  function buildActionResultMessage(actionMode, prevState, next, cellIdx) {
+    const encouragement = buildEncouragement(next);
+
+    if (actionMode === "fire") {
+      const status = next.cellStatus[cellIdx];
+      const wasLand = next.land.includes(cellIdx);
+      if (status === "sunk") {
+        const ship = next.ships.find((s) => s.cells.includes(cellIdx));
+        return {
+          title: "Direct hit - SUNK!",
+          body: `You've sunk the ${ship ? ship.name : "ship"}! ${encouragement}`,
+        };
+      }
+      if (status === "hit") {
+        return { title: "Hit!", body: `Nice shooting - you've damaged a ship. ${encouragement}` };
+      }
+      if (wasLand) {
+        return { title: "Land ho!", body: `Ah, no ship there - just land. ${encouragement}` };
+      }
+      return { title: "Miss - just water", body: `Ah, miss - you've hit open water. ${encouragement}` };
+    }
+
+    if (actionMode === "bomb") {
+      let hits = 0;
+      let sunk = 0;
+      for (const c of crossCells(cellIdx)) {
+        if (next.cellStatus[c] === "hit") hits++;
+        if (next.cellStatus[c] === "sunk" && prevState.cellStatus[c] !== "sunk") sunk++;
+      }
+      if (sunk > 0) {
+        return { title: "Bomb away - direct hit!", body: `Your blast sank a ship! ${encouragement}` };
+      }
+      if (hits > 0) {
+        return {
+          title: "Bomb away - contact!",
+          body: `You damaged ${hits} cell${hits > 1 ? "s" : ""} in the blast. ${encouragement}`,
+        };
+      }
+      return {
+        title: "Bomb away - no contact",
+        body: `Just water and land in that blast radius. ${encouragement}`,
+      };
+    }
+
+    if (actionMode === "intel") {
+      let spotted = 0;
+      for (const c of block3x3(cellIdx)) {
+        if (next.cellStatus[c] === "spotted" && prevState.cellStatus[c] !== "spotted") spotted++;
+      }
+      if (spotted > 0) {
+        return {
+          title: "Intel sweep - contact!",
+          body: `You've spotted ${spotted} ship cell${spotted > 1 ? "s" : ""} in that area. ${encouragement}`,
+        };
+      }
+      return { title: "Intel sweep - clear", body: `Nothing but water and land out there. ${encouragement}` };
+    }
+
+    return null;
+  }
+
+  function dismissActionResult() {
+    setActionResult(null);
+  }
+
+  function dismissLootModal() {
+    const target = pendingLoot?.flashTarget;
+    setPendingLoot(null);
+    if (target) flashButtons([target]);
+  }
+
+  // Onboarding sequence for a brand-new player only (see tutorialStep in engine.js).
+  function getTutorialModal() {
+    if (state.tutorialStep === 0) {
+      return {
+        title: "Why 60 days?",
+        body:
+          'Fun fact: it takes about 60 days to build a new habit - that\'s exactly why you\'ve got 60 days to hunt down this fleet. Good news: these are the only "shots" you\'ll be taking from now on.',
+        action: { label: "Next", onClick: () => commit(advanceTutorialStep(state, 1)) },
+      };
+    }
+    if (state.tutorialStep === 1) {
+      return {
+        title: "Your starter kit",
+        body:
+          "Here's one of each to get you started: a Fire shot, a Bomb, and an Intel charge. Try them all out at your own pace - no pressure.",
+        action: {
+          label: "Let's go",
+          onClick: () => {
+            commit(grantTutorialStarterKit(state));
+            flashButtons(["fire", "bomb", "intel"]);
+          },
+        },
+      };
+    }
+    if (state.tutorialStep === 2) {
+      return {
+        title: "Keep hunting",
+        body: "Nice work exploring - here's 5 more shots to keep you going.",
+        action: {
+          label: "Thanks!",
+          onClick: () => {
+            commit(grantTutorialBonusShots(state));
+            flashButtons(["fire"]);
+          },
+        },
+      };
+    }
+    if (state.tutorialStep === 3) {
+      return {
+        title: "One more tip",
+        body:
+          "Broadcasting your progress earns you +1 shot every day you do it - and accountability really does help with staying sober. Try the Broadcast button anytime.",
+        action: {
+          label: "Got it",
+          onClick: () => {
+            commit(advanceTutorialStep(state, TUTORIAL_DONE));
+            flashButtons(["broadcast"]);
+          },
+        },
+      };
+    }
+    return null;
+  }
+
+  const tutorialModal = !showIntro ? getTutorialModal() : null;
+
   function handleCellClick(i) {
     if (mode === "fire") {
       if (!["hidden", "spotted"].includes(state.cellStatus[i])) return;
@@ -212,10 +380,13 @@ export default function App() {
         }
         return;
       }
+      const prevState = state;
       const next = fireShot(state, i);
       commit(next);
       if (next.cellStatus[i] === "hit") playHit();
       else if (next.cellStatus[i] === "miss") playMiss();
+      setActionResult(buildActionResultMessage("fire", prevState, next, i));
+      if (next.lootResult) setPendingLoot(next.lootResult);
     } else if (mode === "bomb") {
       if (state.bombsAvailable <= 0) {
         const { next: nextMilestone } = milestoneProgress(state.streakDays, BOMB_MILESTONES);
@@ -226,8 +397,12 @@ export default function App() {
         );
         return;
       }
-      commit(detonateBomb(state, i));
+      const prevState = state;
+      const next = detonateBomb(state, i);
+      commit(next);
       playBoom();
+      setActionResult(buildActionResultMessage("bomb", prevState, next, i));
+      if (next.lootResult) setPendingLoot(next.lootResult);
     } else if (mode === "intel") {
       if (state.intelAvailable <= 0) {
         const { next: nextMilestone } = milestoneProgress(state.streakDays, INTEL_MILESTONES);
@@ -238,8 +413,12 @@ export default function App() {
         );
         return;
       }
-      commit(revealIntel(state, i));
+      const prevState = state;
+      const next = revealIntel(state, i);
+      commit(next);
       playPing();
+      setActionResult(buildActionResultMessage("intel", prevState, next, i));
+      if (next.lootResult) setPendingLoot(next.lootResult);
     }
   }
 
@@ -361,7 +540,10 @@ export default function App() {
         <button className="utilityBtn" onClick={() => setHistoryOpen(true)}>
           &#9702; LOG
         </button>
-        <button className="utilityBtn" onClick={handleShare}>
+        <button
+          className={`utilityBtn ${flashTargets.includes("broadcast") ? "flashing" : ""}`}
+          onClick={handleShare}
+        >
           &#9703; BROADCAST
         </button>
       </div>
@@ -393,7 +575,9 @@ export default function App() {
       </div>
 
       <div className="resourceRow">
-        <div className={`resourceWrap ${state.shotsAvailable > 0 ? "ready" : ""}`}>
+        <div
+          className={`resourceWrap ${state.shotsAvailable > 0 ? "ready" : ""} ${flashTargets.includes("fire") ? "flashing" : ""}`}
+        >
           <button
             className={`resourceBtn fire ${mode === "fire" ? "active" : ""}`}
             onClick={() => setMode("fire")}
@@ -402,7 +586,9 @@ export default function App() {
             <span className="resCount">{state.shotsAvailable}</span>
           </button>
         </div>
-        <div className={`resourceWrap ${state.bombsAvailable > 0 ? "ready" : ""}`}>
+        <div
+          className={`resourceWrap ${state.bombsAvailable > 0 ? "ready" : ""} ${flashTargets.includes("bomb") ? "flashing" : ""}`}
+        >
           <button
             className={`resourceBtn bomb ${mode === "bomb" ? "active" : ""}`}
             onClick={() => setMode("bomb")}
@@ -418,7 +604,9 @@ export default function App() {
             {bombProgress.next ? `NEXT D${bombProgress.next}` : "MAXED"}
           </span>
         </div>
-        <div className={`resourceWrap ${state.intelAvailable > 0 ? "ready" : ""}`}>
+        <div
+          className={`resourceWrap ${state.intelAvailable > 0 ? "ready" : ""} ${flashTargets.includes("intel") ? "flashing" : ""}`}
+        >
           <button
             className={`resourceBtn intel ${mode === "intel" ? "active" : ""}`}
             onClick={() => setMode("intel")}
@@ -561,7 +749,21 @@ export default function App() {
         </div>
       )}
 
-      {!showIntro && howToPlayOpen && (
+      {!showIntro && tutorialModal && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard">
+            <h2>{tutorialModal.title}</h2>
+            <p>{tutorialModal.body}</p>
+            <div className="modalActions">
+              <button className="primary" onClick={tutorialModal.action.onClick}>
+                {tutorialModal.action.label}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showIntro && !tutorialModal && howToPlayOpen && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard howToPlayCard">
             <h2>Field manual</h2>
@@ -575,7 +777,7 @@ export default function App() {
         </div>
       )}
 
-      {!showIntro && !howToPlayOpen && activeModal && (
+      {!showIntro && !tutorialModal && !howToPlayOpen && activeModal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard">
             <h2>{activeModal.title}</h2>
@@ -607,6 +809,35 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {!showIntro && !tutorialModal && !howToPlayOpen && !activeModal && actionResult && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard">
+            <h2>{actionResult.title}</h2>
+            <p>{actionResult.body}</p>
+            <div className="modalActions">
+              <button className="primary" onClick={dismissActionResult}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showIntro && !tutorialModal && !howToPlayOpen && !activeModal && !actionResult && pendingLoot && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard lootCard">
+            <div className="lootIcon">&#127873;</div>
+            <h2>Loot box found!</h2>
+            <p className="lootLabel">{pendingLoot.label}</p>
+            <div className="modalActions">
+              <button className="primary" onClick={dismissLootModal}>
+                Nice!
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import {
   TOTAL,
+  rowOf,
   crossCells,
   block3x3,
   randomBlock3x3,
@@ -11,7 +12,16 @@ import { todayKey } from "./utils";
 import { BOMB_MILESTONES, INTEL_MILESTONES } from "./milestones";
 
 const SHOOTABLE = new Set(["hidden", "spotted"]);
-const SURPRISE_BONUS_CHANCE = 0.15;
+const SOBER_DAY_LOOT_CHANCE = 0.15;
+const LAND_HIT_LOOT_CHANCE = 0.25;
+const LOOT_TYPES = ["shots", "bomb", "intel", "autohit", "spot", "rowIntel"];
+const SHOT_LOOT_AMOUNTS = [1, 2, 3, 5];
+
+// Onboarding sequence for a brand-new player only. tutorialStep 0..3 each
+// show one guided popup; TUTORIAL_DONE means the sequence has finished (or,
+// for any pre-existing save that predates this feature, is treated as
+// already finished -- see hydrateState below).
+export const TUTORIAL_DONE = 4;
 
 function findShipAt(ships, cellIdx) {
   return ships.find((s) => !s.sunk && s.cells.includes(cellIdx));
@@ -24,6 +34,7 @@ function cloneState(state) {
     cellStatus: [...state.cellStatus],
     journal: [...(state.journal ?? [])],
     events: [],
+    lootResult: null,
   };
 }
 
@@ -47,12 +58,17 @@ export function newGameState(prevProfile) {
     gamesWon: prevProfile?.gamesWon ?? 0,
     gamesLost: prevProfile?.gamesLost ?? 0,
     journal: prevProfile?.journal ?? [],
+    // Only a true first-ever player (prevProfile === null) starts the
+    // onboarding sequence; a returning player starting a fresh game after a
+    // win/loss carries over their already-finished tutorialStep.
+    tutorialStep: prevProfile?.tutorialStep ?? 0,
     daysElapsed: 0,
     shotsAvailable: 0,
     bombsAvailable: 0,
     intelAvailable: 0,
     status: "playing",
     events: [],
+    lootResult: null,
   };
 }
 
@@ -69,12 +85,43 @@ export function hydrateState(loaded) {
     recordBonusPending: Boolean(loaded.recordBonusPending),
     lastShareBonusDate: loaded.lastShareBonusDate ?? null,
     pwaBonusClaimed: Boolean(loaded.pwaBonusClaimed),
+    // Missing tutorialStep means this save predates onboarding -- treat as
+    // already finished so existing players never see the new-player tutorial.
+    tutorialStep: Number.isFinite(loaded.tutorialStep) ? loaded.tutorialStep : TUTORIAL_DONE,
     events: [],
+    lootResult: null,
   };
 }
 
 export function startNewGame(state) {
   return newGameState(state);
+}
+
+// Onboarding: advance to a specific tutorial step with no side effects
+// (used for the steps that are just informational, no resource grant).
+export function advanceTutorialStep(state, toStep) {
+  const next = cloneState(state);
+  next.tutorialStep = toStep;
+  return next;
+}
+
+// Onboarding step 1 -> 2: hand a brand-new player one of each resource so
+// they have something to try Fire/Bomb/Intel with right away.
+export function grantTutorialStarterKit(state) {
+  const next = cloneState(state);
+  next.shotsAvailable = Math.max(next.shotsAvailable, 1);
+  next.bombsAvailable = Math.max(next.bombsAvailable, 1);
+  next.intelAvailable = Math.max(next.intelAvailable, 1);
+  next.tutorialStep = 2;
+  return next;
+}
+
+// Onboarding step 2 -> 3: a few more shots to keep a new player hunting.
+export function grantTutorialBonusShots(state) {
+  const next = cloneState(state);
+  next.shotsAvailable += 5;
+  next.tutorialStep = 3;
+  return next;
 }
 
 // Sharing progress earns a bonus shot, capped once per calendar day.
@@ -115,7 +162,10 @@ function applyHitAt(next, cellIdx) {
 
   if (!ship) {
     next.cellStatus[cellIdx] = "miss";
-    return { hit: false };
+    if (isLand) {
+      rollLootBox(next, LAND_HIT_LOOT_CHANCE);
+    }
+    return { hit: false, isLand };
   }
 
   ship.hits = [...ship.hits, cellIdx];
@@ -127,11 +177,86 @@ function applyHitAt(next, cellIdx) {
   } else {
     next.cellStatus[cellIdx] = "hit";
   }
-  return { hit: true };
+  return { hit: true, isLand: false };
 }
 
 function checkWin(next) {
   if (next.ships.every((s) => s.sunk)) next.status = "won";
+}
+
+// Loot box: triggered either by chance on a sober check-in day, or by
+// chance whenever a shot/bomb lands on land. Six possible rewards, chosen
+// uniformly; `lootResult` is a transient (non-persisted-meaningfully) field
+// the UI reads once to show a dedicated popup and flash the relevant button.
+function rollLootBox(next, chance) {
+  if (Math.random() >= chance) return;
+
+  const type = LOOT_TYPES[Math.floor(Math.random() * LOOT_TYPES.length)];
+
+  if (type === "shots") {
+    const amount = SHOT_LOOT_AMOUNTS[Math.floor(Math.random() * SHOT_LOOT_AMOUNTS.length)];
+    next.shotsAvailable += amount;
+    const label = `+${amount} Shot${amount > 1 ? "s" : ""}`;
+    next.events.push(`Loot box found: ${label}!`);
+    next.lootResult = { type: "shots", label, flashTarget: "fire" };
+    return;
+  }
+
+  if (type === "bomb") {
+    next.bombsAvailable += 1;
+    next.events.push("Loot box found: +1 Bomb!");
+    next.lootResult = { type: "bomb", label: "+1 Bomb", flashTarget: "bomb" };
+    return;
+  }
+
+  if (type === "intel") {
+    next.intelAvailable += 1;
+    next.events.push("Loot box found: +1 Intel Charge!");
+    next.lootResult = { type: "intel", label: "+1 Intel Charge", flashTarget: "intel" };
+    return;
+  }
+
+  if (type === "autohit") {
+    const cell = pickRandomUndiscoveredShipCell(next);
+    if (cell === null) {
+      next.shotsAvailable += 1;
+      next.events.push("Loot box found: +1 Shot!");
+      next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
+      return;
+    }
+    applyHitAt(next, cell);
+    checkWin(next);
+    next.events.push("Loot box found: recon radioed in a free confirmed hit!");
+    next.lootResult = { type: "autohit", label: "Free Confirmed Hit!", flashTarget: "fire" };
+    return;
+  }
+
+  if (type === "spot") {
+    const cell = pickRandomUndiscoveredShipCell(next);
+    if (cell === null) {
+      next.shotsAvailable += 1;
+      next.events.push("Loot box found: +1 Shot!");
+      next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
+      return;
+    }
+    next.cellStatus[cell] = "spotted";
+    next.events.push("Loot box found: a ship has been spotted on the board!");
+    next.lootResult = { type: "spot", label: "Ship Spotted!", flashTarget: "fire" };
+    return;
+  }
+
+  // rowIntel
+  const cell = pickRandomUndiscoveredShipCell(next);
+  if (cell === null) {
+    next.shotsAvailable += 1;
+    next.events.push("Loot box found: +1 Shot!");
+    next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
+    return;
+  }
+  next.cellStatus[cell] = "spotted";
+  const rowLetter = String.fromCharCode(65 + rowOf(cell));
+  next.events.push(`Loot box found: intelligence report - a vessel in row ${rowLetter}!`);
+  next.lootResult = { type: "rowIntel", label: `Vessel spotted in row ${rowLetter}`, flashTarget: "fire" };
 }
 
 export function fireShot(state, cellIdx) {
@@ -240,36 +365,6 @@ function pickRandomUndiscoveredShipCell(next) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-// A random, delightful "supply drop" on some sober days: an extra shot,
-// a bomb, an intel charge, or a free confirmed hit somewhere on the fleet.
-function rollSurpriseBonus(next) {
-  if (Math.random() >= SURPRISE_BONUS_CHANCE) return;
-
-  const options = ["shot", "bomb", "intel", "autohit"];
-  const choice = options[Math.floor(Math.random() * options.length)];
-
-  if (choice === "shot") {
-    next.shotsAvailable += 1;
-    next.events.push("Surprise supply drop: +1 shot.");
-  } else if (choice === "bomb") {
-    next.bombsAvailable += 1;
-    next.events.push("Surprise supply drop: +1 bomb.");
-  } else if (choice === "intel") {
-    next.intelAvailable += 1;
-    next.events.push("Surprise supply drop: +1 intel charge.");
-  } else {
-    const cell = pickRandomUndiscoveredShipCell(next);
-    if (cell === null) {
-      next.shotsAvailable += 1;
-      next.events.push("Surprise supply drop: +1 shot.");
-    } else {
-      applyHitAt(next, cell);
-      next.events.push("Recon radioed in a confirmed hit, free of charge!");
-      checkWin(next);
-    }
-  }
-}
-
 export function applyCheckIn(state, answeredSober, note) {
   const today = todayKey();
   if (state.lastCheckDate === today) return state;
@@ -304,7 +399,7 @@ export function applyCheckIn(state, answeredSober, note) {
       next.events.push(`Day ${next.streakDays} streak! An intel charge is ready.`);
     }
 
-    rollSurpriseBonus(next);
+    rollLootBox(next, SOBER_DAY_LOOT_CHANCE);
   } else {
     next.journal = [
       { date: today, streakBefore: state.streakDays, note: note || "" },
