@@ -21,7 +21,7 @@ const SHOT_LOOT_AMOUNTS = [1, 2, 3, 5];
 // show one guided popup; TUTORIAL_DONE means the sequence has finished (or,
 // for any pre-existing save that predates this feature, is treated as
 // already finished -- see hydrateState below).
-export const TUTORIAL_DONE = 4;
+export const TUTORIAL_DONE = 5;
 
 function findShipAt(ships, cellIdx) {
   return ships.find((s) => !s.sunk && s.cells.includes(cellIdx));
@@ -53,6 +53,7 @@ export function newGameState(prevProfile) {
     lastCheckDate: prevProfile?.lastCheckDate ?? null,
     lastShareBonusDate: prevProfile?.lastShareBonusDate ?? null,
     pwaBonusClaimed: prevProfile?.pwaBonusClaimed ?? false,
+    notifBonusClaimed: prevProfile?.notifBonusClaimed ?? false,
     recordBonusPending: prevProfile?.recordBonusPending ?? false,
     lifetimeShipsSunk: prevProfile?.lifetimeShipsSunk ?? 0,
     gamesWon: prevProfile?.gamesWon ?? 0,
@@ -85,6 +86,7 @@ export function hydrateState(loaded) {
     recordBonusPending: Boolean(loaded.recordBonusPending),
     lastShareBonusDate: loaded.lastShareBonusDate ?? null,
     pwaBonusClaimed: Boolean(loaded.pwaBonusClaimed),
+    notifBonusClaimed: Boolean(loaded.notifBonusClaimed),
     // Missing tutorialStep means this save predates onboarding -- treat as
     // already finished so existing players never see the new-player tutorial.
     tutorialStep: Number.isFinite(loaded.tutorialStep) ? loaded.tutorialStep : TUTORIAL_DONE,
@@ -153,6 +155,16 @@ export function claimPwaInstallBonus(state) {
   next.pwaBonusClaimed = true;
   next.shotsAvailable += 1;
   next.events.push("Thanks for adding Sober Square to your home screen! +1 shot.");
+  return next;
+}
+
+export function claimNotifBonus(state) {
+  if (state.notifBonusClaimed) return state;
+
+  const next = cloneState(state);
+  next.notifBonusClaimed = true;
+  next.shotsAvailable += 1;
+  next.events.push("Daily reminders enabled! +1 shot for staying accountable.");
   return next;
 }
 

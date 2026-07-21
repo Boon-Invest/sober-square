@@ -11,6 +11,7 @@ import {
   applyCheckIn,
   claimShareBonus,
   claimPwaInstallBonus,
+  claimNotifBonus,
   advanceTutorialStep,
   grantTutorialStarterKit,
   grantTutorialBonusShots,
@@ -140,7 +141,7 @@ export default function App() {
     localStorage.setItem(NOTIF_KEY, JSON.stringify(settings));
     setNotifEnabled(true);
     setNotifTime(time);
-    showToast(`Daily reminder set for ${time}.`);
+    commit(claimNotifBonus(state));
     setNotifOpen(false);
   }
 
@@ -498,9 +499,27 @@ export default function App() {
         action: {
           label: "Got it",
           onClick: () => {
-            commit(advanceTutorialStep(state, TUTORIAL_DONE));
+            commit(advanceTutorialStep(state, 4));
             flashButtons(["broadcast"]);
           },
+        },
+      };
+    }
+    if (state.tutorialStep === 4) {
+      return {
+        title: "Stay on target",
+        body:
+          "Set up a daily reminder so you never miss a check-in. You'll earn +1 bonus shot for turning it on.",
+        action: {
+          label: "Set reminder",
+          onClick: () => {
+            commit(advanceTutorialStep(state, TUTORIAL_DONE));
+            setNotifOpen(true);
+          },
+        },
+        secondaryAction: {
+          label: "Skip",
+          onClick: () => commit(advanceTutorialStep(state, TUTORIAL_DONE)),
         },
       };
     }
@@ -949,6 +968,11 @@ export default function App() {
             <h2>{tutorialModal.title}</h2>
             <p>{tutorialModal.body}</p>
             <div className="modalActions">
+              {tutorialModal.secondaryAction && (
+                <button className="secondary" onClick={tutorialModal.secondaryAction.onClick}>
+                  {tutorialModal.secondaryAction.label}
+                </button>
+              )}
               <button className="primary" onClick={tutorialModal.action.onClick}>
                 {tutorialModal.action.label}
               </button>
@@ -1076,46 +1100,58 @@ export default function App() {
 
       {notifOpen && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
-          <div className="modalCard">
+          <div className="modalCard notifCard">
             <h2>Daily reminder</h2>
+            {!state.notifBonusClaimed && (
+              <p className="notifBonus">+1 bonus shot for enabling reminders!</p>
+            )}
             <p>
-              Get a nudge to check in every day. Browser notifications fire
-              when the app is open; add a calendar event for a reliable alarm
-              on any device.
+              Pick your preferred check-in time. Browser notifications fire
+              when the app is open; a calendar event is the most reliable
+              daily alarm across all devices.
             </p>
+
             <div className="notifTimePicker">
-              <label>Time:</label>
+              <span className="notifTimeLabel">Remind me at</span>
               <input
                 type="time"
                 value={notifTime}
                 onChange={(e) => setNotifTime(e.target.value)}
               />
             </div>
-            <div className="notifSection">
-              {notifEnabled ? (
-                <button
-                  className="notifSetupBtn notifActive"
-                  onClick={disableNotifications}
-                >
-                  <span className="bellIcon">&#128276;</span> Notifications ON — tap to turn off
-                </button>
-              ) : (
-                <button
-                  className="notifSetupBtn"
-                  onClick={() => enableNotifications(notifTime)}
-                >
-                  <span className="bellIcon">&#128276;</span> Enable browser notifications
-                </button>
-              )}
+
+            <div className="notifMenu">
+              <div className="notifMenuItem">
+                <div className="notifMenuIcon">&#128276;</div>
+                <div className="notifMenuBody">
+                  <div className="notifMenuTitle">Browser notifications</div>
+                  <div className="notifMenuDesc">
+                    {notifEnabled
+                      ? "Active — you'll get a nudge when the app is open."
+                      : "Get a push when you open the app past your reminder time."}
+                  </div>
+                </div>
+                {notifEnabled ? (
+                  <button className="notifMenuAction on" onClick={disableNotifications}>ON</button>
+                ) : (
+                  <button className="notifMenuAction" onClick={() => enableNotifications(notifTime)}>OFF</button>
+                )}
+              </div>
+              <div className="notifMenuItem">
+                <div className="notifMenuIcon">&#128197;</div>
+                <div className="notifMenuBody">
+                  <div className="notifMenuTitle">Calendar event</div>
+                  <div className="notifMenuDesc">
+                    Downloads a recurring daily event — works on any phone or desktop.
+                  </div>
+                </div>
+                <button className="notifMenuAction" onClick={downloadCalendarReminder}>GET</button>
+              </div>
             </div>
-            <div className="notifSection">
-              <button className="notifSetupBtn" onClick={downloadCalendarReminder}>
-                <span className="bellIcon">&#128197;</span> Download calendar reminder
-              </button>
-            </div>
+
             <div className="modalActions">
               <button className="primary" onClick={() => setNotifOpen(false)}>
-                Close
+                Done
               </button>
             </div>
           </div>

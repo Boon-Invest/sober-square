@@ -1053,32 +1053,84 @@ button.secondary {
 .cell.previewTarget {
   outline: 2px solid var(--amber);
   outline-offset: -2px;
-  box-shadow: inset 0 0 6px rgba(255, 182, 72, 0.55), 0 0 8px rgba(255, 182, 72, 0.35);
+  box-shadow: inset 0 0 8px rgba(255, 182, 72, 0.6), 0 0 10px rgba(255, 182, 72, 0.4);
   z-index: 2;
+  animation: previewPulse 1s ease-in-out infinite;
+}
+
+@keyframes previewPulse {
+  0%, 100% { box-shadow: inset 0 0 8px rgba(255, 182, 72, 0.6), 0 0 10px rgba(255, 182, 72, 0.4); }
+  50% { box-shadow: inset 0 0 12px rgba(255, 182, 72, 0.85), 0 0 16px rgba(255, 182, 72, 0.6); }
 }
 
 /* Ship hull visuals on hit/sunk cells */
 
+/* Base hull — remove default ✕, add steel plating look */
 .cell.hit.shipH,
-.cell.sunk.shipH {
+.cell.hit.shipV {
   border-radius: 0;
+  background: linear-gradient(160deg, #2a5c4a, #1a3a2e);
+  border: 1px solid rgba(73, 216, 208, 0.5);
+  position: relative;
 }
 
-.cell.hit.shipV,
+.cell.sunk.shipH,
 .cell.sunk.shipV {
   border-radius: 0;
+  background: linear-gradient(160deg, #5a2222, #3a1515);
+  border: 1px solid rgba(255, 107, 91, 0.5);
+  position: relative;
 }
 
+/* Hull plating texture — vertical rivet lines for H ships, horizontal for V */
+.cell.hit.shipH::before,
+.cell.sunk.shipH::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg, transparent, transparent 4px,
+    rgba(255,255,255,0.07) 4px, rgba(255,255,255,0.07) 5px
+  );
+  pointer-events: none;
+}
+
+.cell.hit.shipV::before,
+.cell.sunk.shipV::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 4px,
+    rgba(255,255,255,0.07) 4px, rgba(255,255,255,0.07) 5px
+  );
+  pointer-events: none;
+}
+
+/* Replace generic ✕ with directional hull markers */
+.cell.hit.shipH::after,
+.cell.hit.shipV::after,
+.cell.sunk.shipH::after,
+.cell.sunk.shipV::after {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* Bow — pointed end */
 .cell.hit.shipBow.shipH,
 .cell.sunk.shipBow.shipH {
   border-top-left-radius: 50%;
   border-bottom-left-radius: 50%;
 }
-
-.cell.hit.shipStern.shipH,
-.cell.sunk.shipStern.shipH {
-  border-top-right-radius: 50%;
-  border-bottom-right-radius: 50%;
+.cell.hit.shipBow.shipH::after,
+.cell.sunk.shipBow.shipH::after {
+  content: "◁";
+  font-size: 9px;
+  color: rgba(255,255,255,0.75);
 }
 
 .cell.hit.shipBow.shipV,
@@ -1086,92 +1138,174 @@ button.secondary {
   border-top-left-radius: 50%;
   border-top-right-radius: 50%;
 }
+.cell.hit.shipBow.shipV::after,
+.cell.sunk.shipBow.shipV::after {
+  content: "△";
+  font-size: 9px;
+  color: rgba(255,255,255,0.75);
+}
+
+/* Mid — porthole */
+.cell.hit.shipMid::after,
+.cell.sunk.shipMid::after {
+  content: "●";
+  font-size: 5px;
+  color: rgba(255,255,255,0.35);
+}
+
+/* Stern — engine end */
+.cell.hit.shipStern.shipH,
+.cell.sunk.shipStern.shipH {
+  border-top-right-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+.cell.hit.shipStern.shipH::after,
+.cell.sunk.shipStern.shipH::after {
+  content: "▷";
+  font-size: 9px;
+  color: rgba(255,255,255,0.75);
+}
 
 .cell.hit.shipStern.shipV,
 .cell.sunk.shipStern.shipV {
   border-bottom-left-radius: 50%;
   border-bottom-right-radius: 50%;
 }
-
-.cell.hit.shipMid::after,
-.cell.sunk.shipMid::after {
-  font-size: 7px;
+.cell.hit.shipStern.shipV::after,
+.cell.sunk.shipStern.shipV::after {
+  content: "▽";
+  font-size: 9px;
+  color: rgba(255,255,255,0.75);
 }
 
-.cell.sunk.shipH,
-.cell.sunk.shipV {
-  background: linear-gradient(135deg, var(--sunk), #6b2020);
-  border: 1px solid rgba(255, 107, 91, 0.5);
-}
-
-.cell.hit.shipH,
-.cell.hit.shipV {
-  background: linear-gradient(135deg, var(--hit), #1a4a3a);
-  border: 1px solid rgba(73, 216, 208, 0.4);
+/* Sunk ship markers are red-tinted */
+.cell.sunk.shipBow::after,
+.cell.sunk.shipMid::after,
+.cell.sunk.shipStern::after {
+  color: rgba(255, 107, 91, 0.6);
 }
 
 /* Notification setup */
 
-.notifSection {
-  margin: 14px 0 6px;
+.notifCard {
+  max-width: 340px;
 }
 
-.notifSetupBtn {
+.notifBonus {
+  text-align: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(255, 209, 102, 0.1);
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.notifTimePicker {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
+  gap: 10px;
   justify-content: center;
+  margin: 14px 0;
+  padding: 10px;
+  background: var(--panel-alt);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.notifTimeLabel {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.notifTimePicker input[type="time"] {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--chassis);
+  color: var(--cyan);
+  text-align: center;
+}
+
+.notifMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.notifMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--panel-alt);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.notifMenuIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.notifMenuBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifMenuTitle {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px dashed var(--border);
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.notifMenuDesc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.notifMenuAction {
+  flex-shrink: 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   text-transform: uppercase;
 }
 
-.notifSetupBtn:hover {
+.notifMenuAction:hover {
   border-color: var(--cyan);
   color: var(--cyan);
 }
 
-.notifSetupBtn .bellIcon {
-  font-size: 14px;
+.notifMenuAction.on {
+  background: var(--teal);
+  color: #04211d;
+  border-color: var(--teal);
 }
 
-.notifActive {
+.utilityBtn.notifActive {
   border-color: var(--teal);
   color: var(--teal);
-  border-style: solid;
-}
-
-.notifTimePicker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 10px;
-}
-
-.notifTimePicker input[type="time"] {
-  font-family: 'Space Mono', monospace;
-  font-size: 14px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel-alt);
-  color: var(--text-primary);
-  text-align: center;
-}
-
-.notifTimePicker button {
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 7px 12px;
 }
