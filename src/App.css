@@ -310,6 +310,36 @@ p {
   flex-shrink: 0;
 }
 
+/* Bomb/Intel preview-and-confirm banner */
+
+.confirmBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--panel-alt);
+  border: 2px solid var(--amber);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.confirmBannerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmBannerActions button {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+}
+
 /* Resource row */
 
 .resourceRow {
@@ -923,13 +953,13 @@ p {
   padding: 9px 14px;
 }
 
-.modalActions button.primary {
+button.primary {
   background: var(--cyan);
   color: #04211d;
   border: none;
 }
 
-.modalActions button.secondary {
+button.secondary {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border);
@@ -1016,4 +1046,132 @@ p {
 
 .howToPlay li {
   margin-bottom: 4px;
+}
+
+/* Preview target highlight (bomb cross / intel 3x3 before confirming) */
+
+.cell.previewTarget {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 6px rgba(255, 182, 72, 0.55), 0 0 8px rgba(255, 182, 72, 0.35);
+  z-index: 2;
+}
+
+/* Ship hull visuals on hit/sunk cells */
+
+.cell.hit.shipH,
+.cell.sunk.shipH {
+  border-radius: 0;
+}
+
+.cell.hit.shipV,
+.cell.sunk.shipV {
+  border-radius: 0;
+}
+
+.cell.hit.shipBow.shipH,
+.cell.sunk.shipBow.shipH {
+  border-top-left-radius: 50%;
+  border-bottom-left-radius: 50%;
+}
+
+.cell.hit.shipStern.shipH,
+.cell.sunk.shipStern.shipH {
+  border-top-right-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.cell.hit.shipBow.shipV,
+.cell.sunk.shipBow.shipV {
+  border-top-left-radius: 50%;
+  border-top-right-radius: 50%;
+}
+
+.cell.hit.shipStern.shipV,
+.cell.sunk.shipStern.shipV {
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.cell.hit.shipMid::after,
+.cell.sunk.shipMid::after {
+  font-size: 7px;
+}
+
+.cell.sunk.shipH,
+.cell.sunk.shipV {
+  background: linear-gradient(135deg, var(--sunk), #6b2020);
+  border: 1px solid rgba(255, 107, 91, 0.5);
+}
+
+.cell.hit.shipH,
+.cell.hit.shipV {
+  background: linear-gradient(135deg, var(--hit), #1a4a3a);
+  border: 1px solid rgba(73, 216, 208, 0.4);
+}
+
+/* Notification setup */
+
+.notifSection {
+  margin: 14px 0 6px;
+}
+
+.notifSetupBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.notifSetupBtn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.notifSetupBtn .bellIcon {
+  font-size: 14px;
+}
+
+.notifActive {
+  border-color: var(--teal);
+  color: var(--teal);
+  border-style: solid;
+}
+
+.notifTimePicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.notifTimePicker input[type="time"] {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.notifTimePicker button {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 12px;
 }

@@ -26,11 +26,29 @@ import HowToPlay from "./components/HowToPlay";
 
 const STORAGE_KEY = "sober_square_battleship_v1";
 const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
+const BOMB_INTRO_KEY = "sober_square_seen_bomb_intro";
+const INTEL_INTRO_KEY = "sober_square_seen_intel_intro";
+const NOTIF_KEY = "sober_square_notif_settings";
+const NOTIF_LAST_FIRED_KEY = "sober_square_last_notif";
 
 // Logo badge: a 3x3 grid glyph (miniature radar grid), not a lettered mark.
 const LOGO_DOT_CLASSES = ["", "edge", "", "edge", "center", "edge", "", "edge", ""];
 const COL_LABELS = Array.from({ length: GRID }, (_, i) => String.fromCharCode(65 + i));
 const ROW_LABELS = Array.from({ length: GRID }, (_, i) => String(i + 1));
+
+// Shape classes so a hit/sunk cell reads as part of an actual hull -- rounded
+// at the bow/stern ends, oriented to match how the ship is actually laid out.
+function getShipShapeClass(ships, cellIdx) {
+  const ship = ships.find((s) => s.cells.includes(cellIdx));
+  if (!ship || ship.size < 2) return "";
+  const cellPos = ship.cells.indexOf(cellIdx);
+  const isHorizontal = rowOf(ship.cells[0]) === rowOf(ship.cells[1]);
+  let cls = isHorizontal ? " shipH" : " shipV";
+  if (cellPos === 0) cls += " shipBow";
+  if (cellPos === ship.size - 1) cls += " shipStern";
+  if (cellPos > 0 && cellPos < ship.size - 1) cls += " shipMid";
+  return cls;
+}
 
 function loadState() {
   try {
@@ -67,10 +85,105 @@ export default function App() {
   const [actionResult, setActionResult] = useState(null);
   const [pendingLoot, setPendingLoot] = useState(null);
   const [flashTargets, setFlashTargets] = useState([]);
+  const [pendingTarget, setPendingTarget] = useState(null);
+  const [seenBombIntro, setSeenBombIntro] = useState(
+    () => localStorage.getItem(BOMB_INTRO_KEY) === "1"
+  );
+  const [seenIntelIntro, setSeenIntelIntro] = useState(
+    () => localStorage.getItem(INTEL_INTRO_KEY) === "1"
+  );
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTime, setNotifTime] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(NOTIF_KEY));
+      return saved?.time || "09:00";
+    } catch { return "09:00"; }
+  });
+  const [notifEnabled, setNotifEnabled] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(NOTIF_KEY));
+      return saved?.enabled || false;
+    } catch { return false; }
+  });
 
   function flashButtons(targets) {
     setFlashTargets(targets);
     setTimeout(() => setFlashTargets([]), 5000);
+  }
+
+  function selectMode(nextMode) {
+    setMode(nextMode);
+    setPendingTarget(null);
+  }
+
+  function dismissBombIntro() {
+    localStorage.setItem(BOMB_INTRO_KEY, "1");
+    setSeenBombIntro(true);
+  }
+
+  function dismissIntelIntro() {
+    localStorage.setItem(INTEL_INTRO_KEY, "1");
+    setSeenIntelIntro(true);
+  }
+
+  async function enableNotifications(time) {
+    if (!("Notification" in window)) {
+      showToast("Notifications aren't supported on this browser.");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") {
+      showToast("Permission denied — check your browser settings.");
+      return;
+    }
+    const settings = { enabled: true, time };
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(settings));
+    setNotifEnabled(true);
+    setNotifTime(time);
+    showToast(`Daily reminder set for ${time}.`);
+    setNotifOpen(false);
+  }
+
+  function disableNotifications() {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify({ enabled: false, time: notifTime }));
+    setNotifEnabled(false);
+    showToast("Daily reminders turned off.");
+    setNotifOpen(false);
+  }
+
+  function downloadCalendarReminder() {
+    const [h, m] = notifTime.split(":");
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const uid = `sober-square-${dateStr}@sobersquare`;
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//SoberSquare//EN",
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTART:${dateStr}T${h}${m}00`,
+      "RRULE:FREQ=DAILY",
+      "DURATION:PT5M",
+      "SUMMARY:Sober Square - Daily Check-in",
+      "DESCRIPTION:Open Sober Square to log your day and keep your streak going!",
+      "BEGIN:VALARM",
+      "TRIGGER:PT0M",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Time to check in!",
+      "END:VALARM",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const blob = new Blob([ics], { type: "text/calendar" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sober-square-reminder.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Calendar file downloaded — add it to your calendar app.");
   }
 
   const showInstallHint = !isStandalonePwa() && !installDismissed;
@@ -152,6 +265,40 @@ export default function App() {
     return () => window.removeEventListener("appinstalled", handleAppInstalled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!notifEnabled) return;
+    function checkReminder() {
+      const today = todayKey();
+      if (state.lastCheckDate === today) return;
+      const now = new Date();
+      const [h, m] = notifTime.split(":").map(Number);
+      const target = new Date();
+      target.setHours(h, m, 0, 0);
+      if (now < target) return;
+      const lastFired = localStorage.getItem(NOTIF_LAST_FIRED_KEY);
+      if (lastFired === today) return;
+      localStorage.setItem(NOTIF_LAST_FIRED_KEY, today);
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification("Sober Square — Daily Debrief", {
+            body: "Time to check in! Open the app to log your day.",
+            icon: "/icon-192.png",
+            tag: "daily-reminder",
+          });
+        });
+      } else if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("Sober Square — Daily Debrief", {
+          body: "Time to check in! Open the app to log your day.",
+          icon: "/icon-192.png",
+          tag: "daily-reminder",
+        });
+      }
+    }
+    checkReminder();
+    const interval = setInterval(checkReminder, 60_000);
+    return () => clearInterval(interval);
+  }, [notifEnabled, notifTime, state.lastCheckDate]);
 
   function commitCheckIn(sober, note) {
     commit(applyCheckIn(state, sober, note));
@@ -390,12 +537,9 @@ export default function App() {
         );
         return;
       }
-      const prevState = state;
-      const next = detonateBomb(state, i);
-      commit(next);
-      playBoom();
-      setActionResult(buildActionResultMessage("bomb", prevState, next, i));
-      if (next.lootResult) setPendingLoot(next.lootResult);
+      // Preview only -- tapping elsewhere just moves the preview. The
+      // action only actually fires once the user taps Confirm.
+      setPendingTarget(i);
     } else if (mode === "intel") {
       if (state.intelAvailable <= 0) {
         const { next: nextMilestone } = milestoneProgress(state.streakDays, INTEL_MILESTONES);
@@ -406,13 +550,32 @@ export default function App() {
         );
         return;
       }
-      const prevState = state;
-      const next = revealIntel(state, i);
-      commit(next);
-      playPing();
-      setActionResult(buildActionResultMessage("intel", prevState, next, i));
-      if (next.lootResult) setPendingLoot(next.lootResult);
+      setPendingTarget(i);
     }
+  }
+
+  function confirmBomb() {
+    const cellIdx = pendingTarget;
+    if (cellIdx === null) return;
+    const prevState = state;
+    const next = detonateBomb(state, cellIdx);
+    commit(next);
+    playBoom();
+    setActionResult(buildActionResultMessage("bomb", prevState, next, cellIdx));
+    if (next.lootResult) setPendingLoot(next.lootResult);
+    setPendingTarget(null);
+  }
+
+  function confirmIntel() {
+    const cellIdx = pendingTarget;
+    if (cellIdx === null) return;
+    const prevState = state;
+    const next = revealIntel(state, cellIdx);
+    commit(next);
+    playPing();
+    setActionResult(buildActionResultMessage("intel", prevState, next, cellIdx));
+    if (next.lootResult) setPendingLoot(next.lootResult);
+    setPendingTarget(null);
   }
 
   async function handleShare() {
@@ -435,6 +598,16 @@ export default function App() {
   const bombProgress = milestoneProgress(state.streakDays, BOMB_MILESTONES);
   const intelProgress = milestoneProgress(state.streakDays, INTEL_MILESTONES);
   const tensionClass = daysRemaining <= 5 ? " critical" : daysRemaining <= 14 ? " tense" : "";
+
+  const previewCells =
+    pendingTarget !== null
+      ? mode === "bomb"
+        ? crossCells(pendingTarget)
+        : mode === "intel"
+        ? block3x3(pendingTarget)
+        : []
+      : [];
+  const previewSet = new Set(previewCells);
 
   function getNextStepMessage() {
     if (state.shotsAvailable > 0) {
@@ -536,6 +709,12 @@ export default function App() {
         >
           &#9703; BROADCAST
         </button>
+        <button
+          className={`utilityBtn ${notifEnabled ? "notifActive" : ""}`}
+          onClick={() => setNotifOpen(true)}
+        >
+          &#128276; REMIND
+        </button>
       </div>
 
       {showRecordShare && (
@@ -570,7 +749,7 @@ export default function App() {
         >
           <button
             className={`resourceBtn fire ${mode === "fire" ? "active" : ""}`}
-            onClick={() => setMode("fire")}
+            onClick={() => selectMode("fire")}
           >
             <span className="resIcon">&#9678;</span>FIRE
             <span className="resCount">{state.shotsAvailable}</span>
@@ -581,7 +760,7 @@ export default function App() {
         >
           <button
             className={`resourceBtn bomb ${mode === "bomb" ? "active" : ""}`}
-            onClick={() => setMode("bomb")}
+            onClick={() => selectMode("bomb")}
             disabled={state.bombsAvailable <= 0}
           >
             <span className="resIcon">&#10022;</span>BOMB
@@ -599,7 +778,7 @@ export default function App() {
         >
           <button
             className={`resourceBtn intel ${mode === "intel" ? "active" : ""}`}
-            onClick={() => setMode("intel")}
+            onClick={() => selectMode("intel")}
             disabled={state.intelAvailable <= 0}
           >
             <span className="resIcon">&#9670;</span>INTEL
@@ -618,6 +797,33 @@ export default function App() {
         {mode === "bomb" && "Tap a square to detonate a 5-cell cross."}
         {mode === "intel" && "Tap a square to reveal a 3×3 area, no damage."}
       </p>
+
+      {mode === "bomb" && pendingTarget !== null && (
+        <div className="confirmBanner">
+          <span>Confirm Bomb strike here?</span>
+          <div className="confirmBannerActions">
+            <button className="primary" onClick={confirmBomb}>
+              Confirm
+            </button>
+            <button className="secondary" onClick={() => setPendingTarget(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {mode === "intel" && pendingTarget !== null && (
+        <div className="confirmBanner">
+          <span>Confirm Intel scan here?</span>
+          <div className="confirmBannerActions">
+            <button className="primary" onClick={confirmIntel}>
+              Confirm
+            </button>
+            <button className="secondary" onClick={() => setPendingTarget(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="boardFrame">
         <div className="colRuler">
@@ -653,8 +859,8 @@ export default function App() {
                 let style;
                 if (status === "hidden") cls += " fog";
                 else if (status === "spotted") cls += " spotted";
-                else if (status === "hit") cls += " hit";
-                else if (status === "sunk") cls += " sunk";
+                else if (status === "hit") cls += " hit" + getShipShapeClass(state.ships, i);
+                else if (status === "sunk") cls += " sunk" + getShipShapeClass(state.ships, i);
                 else {
                   cls += isLand ? " land" : " water";
                   if (isLand) {
@@ -669,6 +875,7 @@ export default function App() {
                   }
                 }
                 if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
+                if (previewSet.has(i)) cls += " previewTarget";
 
                 return (
                   <button
@@ -823,6 +1030,92 @@ export default function App() {
             <div className="modalActions">
               <button className="primary" onClick={dismissLootModal}>
                 Nice!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showIntro && !tutorialModal && !howToPlayOpen && !activeModal && !actionResult && !pendingLoot &&
+        mode === "bomb" && !seenBombIntro && (
+          <div className="modalOverlay" role="dialog" aria-modal="true">
+            <div className="modalCard">
+              <h2>How Bomb works</h2>
+              <p>
+                Tap a square on the board to preview a 5-square cross blast around
+                it. Like what you see? Tap Confirm to strike - or tap a different
+                square first to move the preview.
+              </p>
+              <div className="modalActions">
+                <button className="primary" onClick={dismissBombIntro}>
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {!showIntro && !tutorialModal && !howToPlayOpen && !activeModal && !actionResult && !pendingLoot &&
+        mode === "intel" && !seenIntelIntro && (
+          <div className="modalOverlay" role="dialog" aria-modal="true">
+            <div className="modalCard">
+              <h2>How Intel works</h2>
+              <p>
+                Tap a square on the board to preview a 3&times;3 scan area. Tap
+                Confirm to reveal it (no damage) - or tap a different square first
+                to move the preview.
+              </p>
+              <div className="modalActions">
+                <button className="primary" onClick={dismissIntelIntro}>
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {notifOpen && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard">
+            <h2>Daily reminder</h2>
+            <p>
+              Get a nudge to check in every day. Browser notifications fire
+              when the app is open; add a calendar event for a reliable alarm
+              on any device.
+            </p>
+            <div className="notifTimePicker">
+              <label>Time:</label>
+              <input
+                type="time"
+                value={notifTime}
+                onChange={(e) => setNotifTime(e.target.value)}
+              />
+            </div>
+            <div className="notifSection">
+              {notifEnabled ? (
+                <button
+                  className="notifSetupBtn notifActive"
+                  onClick={disableNotifications}
+                >
+                  <span className="bellIcon">&#128276;</span> Notifications ON — tap to turn off
+                </button>
+              ) : (
+                <button
+                  className="notifSetupBtn"
+                  onClick={() => enableNotifications(notifTime)}
+                >
+                  <span className="bellIcon">&#128276;</span> Enable browser notifications
+                </button>
+              )}
+            </div>
+            <div className="notifSection">
+              <button className="notifSetupBtn" onClick={downloadCalendarReminder}>
+                <span className="bellIcon">&#128197;</span> Download calendar reminder
+              </button>
+            </div>
+            <div className="modalActions">
+              <button className="primary" onClick={() => setNotifOpen(false)}>
+                Close
               </button>
             </div>
           </div>
