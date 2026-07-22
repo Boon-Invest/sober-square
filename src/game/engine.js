@@ -21,7 +21,7 @@ const SHOT_LOOT_AMOUNTS = [1, 2, 3, 5];
 // show one guided popup; TUTORIAL_DONE means the sequence has finished (or,
 // for any pre-existing save that predates this feature, is treated as
 // already finished -- see hydrateState below).
-export const TUTORIAL_DONE = 5;
+export const TUTORIAL_DONE = 6;
 
 function findShipAt(ships, cellIdx) {
   return ships.find((s) => !s.sunk && s.cells.includes(cellIdx));
@@ -114,15 +114,15 @@ export function grantTutorialStarterKit(state) {
   next.shotsAvailable = Math.max(next.shotsAvailable, 1);
   next.bombsAvailable = Math.max(next.bombsAvailable, 1);
   next.intelAvailable = Math.max(next.intelAvailable, 1);
-  next.tutorialStep = 2;
+  next.tutorialStep = 3;
   return next;
 }
 
-// Onboarding step 2 -> 3: a few more shots to keep a new player hunting.
+// Onboarding step 3 -> 4: a few more shots to keep a new player hunting.
 export function grantTutorialBonusShots(state) {
   const next = cloneState(state);
   next.shotsAvailable += 5;
-  next.tutorialStep = 3;
+  next.tutorialStep = 4;
   return next;
 }
 

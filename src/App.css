@@ -887,6 +887,24 @@ p {
   text-align: left;
 }
 
+.installCard {
+  text-align: left;
+}
+
+.installSteps {
+  background: var(--panel-alt);
+  border: 1px solid var(--cyan);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--cyan);
+  margin-bottom: 14px;
+  text-align: center;
+}
+
 .lootCard {
   max-width: 320px;
   text-align: center;

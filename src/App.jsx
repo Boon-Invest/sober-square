@@ -465,6 +465,34 @@ export default function App() {
       };
     }
     if (state.tutorialStep === 1) {
+      const plat = detectPlatform();
+      let instructions;
+      if (plat === "ios") {
+        instructions =
+          "Tap the Share button at the bottom of Safari (the square with an arrow), " +
+          "then scroll down and tap \"Add to Home Screen\". That's it!";
+      } else if (plat === "android") {
+        instructions =
+          "Tap the ⋮ menu (three dots) in Chrome, " +
+          "then tap \"Add to Home screen\". That's it!";
+      } else {
+        instructions =
+          "Look for \"Install\" or \"Add to Home screen\" in your browser's menu " +
+          "(usually ⋮ or ⋯ at the top-right).";
+      }
+      return {
+        title: "Add to your home screen",
+        body:
+          "This app works best from your home screen - it loads instantly, works offline, " +
+          "and you'll earn a bonus shot for installing it.\n\n" + instructions,
+        isInstall: true,
+        action: {
+          label: "Next",
+          onClick: () => commit(advanceTutorialStep(state, 2)),
+        },
+      };
+    }
+    if (state.tutorialStep === 2) {
       return {
         title: "Your starter kit",
         body:
@@ -478,7 +506,7 @@ export default function App() {
         },
       };
     }
-    if (state.tutorialStep === 2) {
+    if (state.tutorialStep === 3) {
       return {
         title: "Keep hunting",
         body: "Nice work exploring - here's 5 more shots to keep you going.",
@@ -491,7 +519,7 @@ export default function App() {
         },
       };
     }
-    if (state.tutorialStep === 3) {
+    if (state.tutorialStep === 4) {
       return {
         title: "One more tip",
         body:
@@ -499,13 +527,13 @@ export default function App() {
         action: {
           label: "Got it",
           onClick: () => {
-            commit(advanceTutorialStep(state, 4));
+            commit(advanceTutorialStep(state, 5));
             flashButtons(["broadcast"]);
           },
         },
       };
     }
-    if (state.tutorialStep === 4) {
+    if (state.tutorialStep === 5) {
       return {
         title: "Stay on target",
         body:
@@ -964,9 +992,21 @@ export default function App() {
 
       {!showIntro && tutorialModal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
-          <div className="modalCard">
+          <div className={`modalCard${tutorialModal.isInstall ? " installCard" : ""}`}>
             <h2>{tutorialModal.title}</h2>
-            <p>{tutorialModal.body}</p>
+            {tutorialModal.isInstall ? (
+              <>
+                <p>
+                  This app works best from your home screen — it loads instantly,
+                  works offline, and you&rsquo;ll earn a bonus shot for installing it.
+                </p>
+                <div className="installSteps">
+                  {tutorialModal.body.split("\n\n")[1]}
+                </div>
+              </>
+            ) : (
+              <p>{tutorialModal.body}</p>
+            )}
             <div className="modalActions">
               {tutorialModal.secondaryAction && (
                 <button className="secondary" onClick={tutorialModal.secondaryAction.onClick}>
