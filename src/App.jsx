@@ -271,7 +271,6 @@ export default function App() {
     if (!notifEnabled) return;
     function checkReminder() {
       const today = todayKey();
-      if (state.lastCheckDate === today) return;
       const now = new Date();
       const [h, m] = notifTime.split(":").map(Number);
       const target = new Date();
@@ -280,20 +279,19 @@ export default function App() {
       const lastFired = localStorage.getItem(NOTIF_LAST_FIRED_KEY);
       if (lastFired === today) return;
       localStorage.setItem(NOTIF_LAST_FIRED_KEY, today);
+      const checkedIn = state.lastCheckDate === today;
+      const title = checkedIn
+        ? "Sober Square — Use your shots!"
+        : "Sober Square — Daily Debrief";
+      const body = checkedIn
+        ? "You've got shots to fire — don't let them go to waste!"
+        : "Time to check in! Open the app to log your day.";
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification("Sober Square — Daily Debrief", {
-            body: "Time to check in! Open the app to log your day.",
-            icon: "/icon-192.png",
-            tag: "daily-reminder",
-          });
+          reg.showNotification(title, { body, icon: "/icon-192.png", tag: "daily-reminder" });
         });
       } else if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("Sober Square — Daily Debrief", {
-          body: "Time to check in! Open the app to log your day.",
-          icon: "/icon-192.png",
-          tag: "daily-reminder",
-        });
+        new Notification(title, { body, icon: "/icon-192.png", tag: "daily-reminder" });
       }
     }
     checkReminder();
