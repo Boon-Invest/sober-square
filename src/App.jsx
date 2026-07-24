@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { GRID, TOTAL, rowOf, colOf, crossCells, block3x3 } from "./game/board";
 import {
@@ -87,6 +87,7 @@ export default function App() {
   const [pendingLoot, setPendingLoot] = useState(null);
   const [flashTargets, setFlashTargets] = useState([]);
   const [pendingTarget, setPendingTarget] = useState(null);
+  const [showDrinkWarning, setShowDrinkWarning] = useState(false);
   const [seenBombIntro, setSeenBombIntro] = useState(
     () => localStorage.getItem(BOMB_INTRO_KEY) === "1"
   );
@@ -202,6 +203,30 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const prevCellStatusRef = useRef(null);
+  const fogHighlightRef = useRef(null);
+  useEffect(() => {
+    const prev = prevCellStatusRef.current;
+    if (prev) {
+      prevCellStatusRef.current = null;
+      const newFog = [];
+      for (let i = 0; i < state.cellStatus.length; i++) {
+        if (state.cellStatus[i] === "hidden" && prev[i] !== "hidden") newFog.push(i);
+      }
+      if (newFog.length > 0) {
+        fogHighlightRef.current = newFog;
+        setTimeout(() => {
+          fogHighlightRef.current = null;
+          document.querySelectorAll('.cell.newFog').forEach(el => el.classList.remove('newFog'));
+        }, 5000);
+      }
+    }
+    if (fogHighlightRef.current) {
+      const cells = document.querySelectorAll('.grid > .cell');
+      fogHighlightRef.current.forEach(i => cells[i]?.classList.add('newFog'));
+    }
+  });
+
   function persist(next) {
     saveState(next);
     setState(next);
@@ -300,6 +325,7 @@ export default function App() {
   }, [notifEnabled, notifTime, state.lastCheckDate]);
 
   function commitCheckIn(sober, note) {
+    if (!sober) prevCellStatusRef.current = [...state.cellStatus];
     commit(applyCheckIn(state, sober, note));
   }
 
@@ -307,6 +333,7 @@ export default function App() {
     commitCheckIn(false, save ? reflectionNote.trim() : "");
     setReflectionOpen(false);
     setReflectionNote("");
+    setShowDrinkWarning(false);
   }
 
   // Daily check-in gate, then win/loss notice, derived fresh from state each render.
@@ -320,11 +347,25 @@ export default function App() {
           isReflection: true,
         };
       }
+      if (showDrinkWarning) {
+        return {
+          title: "INCOMING FOG",
+          body:
+            `Logging a drink will reset your ${state.streakDays}-day streak to zero. ` +
+            "A patch of fog will also roll back across the board, hiding cells you've " +
+            "already revealed — and any damaged ships caught in it will relocate and heal.",
+          isWarning: true,
+          actions: [
+            { label: "Go back", variant: "secondary", onClick: () => setShowDrinkWarning(false) },
+            { label: "Continue", variant: "primary", onClick: () => { setShowDrinkWarning(false); setReflectionOpen(true); } },
+          ],
+        };
+      }
       return {
         title: "DAILY DEBRIEF",
         body: "Did you drink yesterday?",
         actions: [
-          { label: "Yes, I drank", variant: "secondary", onClick: () => setReflectionOpen(true) },
+          { label: "Yes, I drank", variant: "secondary", onClick: () => setShowDrinkWarning(true) },
           { label: "No, stayed sober", variant: "primary", onClick: () => commitCheckIn(true) },
         ],
       };
@@ -1035,7 +1076,7 @@ export default function App() {
 
       {!showIntro && !tutorialModal && !howToPlayOpen && activeModal && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
-          <div className="modalCard">
+          <div className={`modalCard${activeModal.isWarning ? " warningCard" : ""}`}>
             <h2>{activeModal.title}</h2>
             <p>{activeModal.body}</p>
             {activeModal.isReflection ? (
