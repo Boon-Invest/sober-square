@@ -26,6 +26,7 @@ import { isStandalonePwa, detectPlatform } from "./game/platform";
 import { BOMB_MILESTONES, INTEL_MILESTONES, milestoneProgress } from "./game/milestones";
 import ShipIcon from "./components/ShipIcon";
 import HowToPlay from "./components/HowToPlay";
+import StatsView from "./components/StatsView";
 
 const STORAGE_KEY = "sober_square_battleship_v1";
 const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
@@ -91,7 +92,8 @@ export default function App() {
   const [pendingTarget, setPendingTarget] = useState(null);
   const [showDrinkWarning, setShowDrinkWarning] = useState(false);
   const [shotHighlight, setShotHighlight] = useState(null);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [activeView, setActiveView] = useState("game");
+  const [combatFocus, setCombatFocus] = useState(false);
   const boardRef = useRef(null);
   const [seenBombIntro, setSeenBombIntro] = useState(
     () => localStorage.getItem(BOMB_INTRO_KEY) === "1"
@@ -122,9 +124,9 @@ export default function App() {
   function selectMode(nextMode) {
     setMode(nextMode);
     setPendingTarget(null);
-    setTimeout(() => {
-      boardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 80);
+    if (nextMode !== "flag") {
+      setCombatFocus(true);
+    }
   }
 
   function dismissBombIntro() {
@@ -342,6 +344,18 @@ export default function App() {
     commit(applyCheckIn(state, sober, note, drinkCount));
   }
 
+  function handleFillDay(dateKey, sober) {
+    const next = {
+      ...state,
+      checkInHistory: [
+        ...(state.checkInHistory || []),
+        { date: dateKey, sober, drinkCount: sober ? 0 : 1 },
+      ],
+    };
+    if (sober) next.totalSoberDays = (next.totalSoberDays || 0) + 1;
+    persist(next);
+  }
+
   function finishReflection(save) {
     commitCheckIn(false, save ? reflectionNote.trim() : "", pendingDrinkCount);
     setReflectionOpen(false);
@@ -519,11 +533,13 @@ export default function App() {
 
   function dismissActionResult() {
     setActionResult(null);
+    setCombatFocus(false);
   }
 
   function dismissLootModal() {
     const target = pendingLoot?.flashTarget;
     setPendingLoot(null);
+    setCombatFocus(false);
     if (target) flashButtons([target]);
   }
 
@@ -750,7 +766,12 @@ export default function App() {
   }
 
   return (
-    <div className="page">
+    <div className={`page${combatFocus ? " combatFocus" : ""}`}>
+      {combatFocus && (
+        <button className="combatExitBtn" onClick={() => setCombatFocus(false)}>
+          &#x2715; EXIT COMBAT
+        </button>
+      )}
       <div className="scanOverlay" />
 
       <div className="titleRow">
@@ -830,7 +851,7 @@ export default function App() {
         <button className="utilityBtn" onClick={() => setHistoryOpen(true)}>
           &#9702; LOG
         </button>
-        <button className="utilityBtn" onClick={() => setStatsOpen(true)}>
+        <button className="utilityBtn" onClick={() => setActiveView("stats")}>
           &#9733; STATS
         </button>
         <button
@@ -970,7 +991,7 @@ export default function App() {
             <button className="primary" onClick={confirmBomb}>
               Confirm
             </button>
-            <button className="secondary" onClick={() => setPendingTarget(null)}>
+            <button className="secondary" onClick={() => { setPendingTarget(null); setCombatFocus(false); }}>
               Cancel
             </button>
           </div>
@@ -983,7 +1004,7 @@ export default function App() {
             <button className="primary" onClick={confirmIntel}>
               Confirm
             </button>
-            <button className="secondary" onClick={() => setPendingTarget(null)}>
+            <button className="secondary" onClick={() => { setPendingTarget(null); setCombatFocus(false); }}>
               Cancel
             </button>
           </div>
@@ -1351,62 +1372,6 @@ export default function App() {
         </div>
       )}
 
-      {statsOpen && (
-        <div className="modalOverlay" role="dialog" aria-modal="true">
-          <div className="modalCard historyCard">
-            <h2>Progress tracker</h2>
-            {(state.checkInHistory || []).length === 0 ? (
-              <p>No check-ins recorded yet. Come back after your first daily debrief.</p>
-            ) : (
-              <>
-                <div className="statsOverview">
-                  <div className="statsOverviewItem">
-                    <span className="statsOverviewValue">{state.totalSoberDays}</span>
-                    <span className="statsOverviewLabel">Sober days</span>
-                  </div>
-                  <div className="statsOverviewItem">
-                    <span className="statsOverviewValue">{state.streakDays}</span>
-                    <span className="statsOverviewLabel">Current streak</span>
-                  </div>
-                  <div className="statsOverviewItem">
-                    <span className="statsOverviewValue">{state.highestStreak}</span>
-                    <span className="statsOverviewLabel">Best streak</span>
-                  </div>
-                </div>
-                <div className="calendarGrid">
-                  {(state.checkInHistory || []).slice(-60).map((entry, idx) => (
-                    <div
-                      key={idx}
-                      className={`calendarDay ${entry.sober ? "sober" : "drank"}`}
-                      title={`${entry.date}: ${entry.sober ? "Sober" : "Drank"}`}
-                    />
-                  ))}
-                </div>
-                <div className="calendarLegend">
-                  <span><i className="swatch calSober" />Sober</span>
-                  <span><i className="swatch calDrank" />Drank</span>
-                </div>
-                <div className="streakTimeline">
-                  <h3>Recent check-ins</h3>
-                  {(state.checkInHistory || []).slice(-14).reverse().map((entry, idx) => (
-                    <div key={idx} className={`timelineEntry ${entry.sober ? "sober" : "drank"}`}>
-                      <span className="timelineDot" />
-                      <span className="timelineDate">{entry.date}</span>
-                      <span className="timelineStatus">{entry.sober ? "Sober" : "Drank"}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="modalActions">
-              <button className="primary" onClick={() => setStatsOpen(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {historyOpen && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard historyCard">
@@ -1432,6 +1397,14 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {activeView === "stats" && (
+        <StatsView
+          state={state}
+          onBack={() => setActiveView("game")}
+          onFillDay={handleFillDay}
+        />
       )}
     </div>
   );

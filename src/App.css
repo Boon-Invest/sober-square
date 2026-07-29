@@ -1524,128 +1524,334 @@ button.secondary {
   100% { transform: scale(1); box-shadow: none; }
 }
 
-/* Visualization / Stats (#5) */
+/* Full-screen Stats view */
 
-.statsOverview {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+.statsScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--chassis);
+  color: var(--text-primary);
+  font-family: 'Nunito', system-ui, sans-serif;
+  overflow-y: auto;
+  padding: max(22px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
 }
 
-.statsOverviewItem {
-  flex: 1;
-  background: var(--panel-alt);
+.statsScreenHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.statsBackBtn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 6px;
+  background: var(--panel);
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.statsScreenTitle {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+
+.statsHeroRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.statsHeroCard {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
-.statsOverviewValue {
+.statsHeroCard.accent {
+  background: linear-gradient(160deg, rgba(53, 194, 176, 0.15), rgba(73, 216, 208, 0.08));
+  border-color: rgba(73, 216, 208, 0.5);
+}
+
+.statsHeroValue {
   font-family: 'Space Mono', monospace;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--cyan);
 }
 
-.statsOverviewLabel {
+.statsHeroLabel {
   font-family: 'Space Mono', monospace;
-  font-size: 8.5px;
+  font-size: 8px;
   letter-spacing: 0.5px;
   color: var(--text-muted);
   text-transform: uppercase;
 }
 
-.calendarGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+.statsSection {
+  margin-bottom: 20px;
+}
+
+.statsSectionTitle {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  text-transform: uppercase;
   margin-bottom: 10px;
-  justify-content: flex-start;
 }
 
-.calendarDay {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
+.statsEmpty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 20px 0;
+  text-align: center;
 }
 
-.calendarDay.sober {
-  background: var(--teal);
+/* Calendar heat map */
+
+.calendarWrap {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
 }
 
-.calendarDay.drank {
-  background: var(--coral);
+.calDayHeaders {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+  padding-left: 32px;
 }
 
-.calendarLegend {
+.calDayHeader {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  color: var(--text-muted);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calGrid {
+  display: flex;
+  gap: 4px;
+}
+
+.calMonthTrack {
+  display: grid;
+  grid-auto-rows: 20px;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.calMonthLabel {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calWeeks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calWeek {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calBlob {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: none;
+  padding: 0;
+  cursor: default;
+  transition: transform 0.15s ease;
+  min-width: 0;
+  width: 100%;
+}
+
+.calBlob.sober {
+  background: linear-gradient(135deg, var(--teal), var(--cyan));
+  box-shadow: 0 0 6px rgba(53, 194, 176, 0.3);
+  cursor: default;
+}
+
+.calBlob.drank {
+  background: linear-gradient(135deg, var(--coral), #ff8a6b);
+  box-shadow: 0 0 6px rgba(255, 107, 91, 0.3);
+  cursor: default;
+}
+
+.calBlob.missed {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(143, 163, 176, 0.3);
+  cursor: pointer;
+}
+
+.calBlob.missed:hover {
+  border-color: var(--cyan);
+  background: rgba(73, 216, 208, 0.08);
+  transform: scale(1.15);
+}
+
+.calBlob.empty {
+  background: transparent;
+}
+
+.calLegend {
   display: flex;
   gap: 14px;
   justify-content: center;
-  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
-.calendarLegend span {
+.calLegend span {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-family: 'Space Mono', monospace;
   font-size: 9px;
   color: var(--text-muted);
 }
 
-.swatch.calSober { background: var(--teal); }
-.swatch.calDrank { background: var(--coral); }
-
-.streakTimeline {
-  margin-bottom: 12px;
+.calLegendDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
 }
 
-.streakTimeline h3 {
+.calLegendDot.sober {
+  background: linear-gradient(135deg, var(--teal), var(--cyan));
+}
+
+.calLegendDot.drank {
+  background: linear-gradient(135deg, var(--coral), #ff8a6b);
+}
+
+.calLegendDot.missed {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(143, 163, 176, 0.3);
+}
+
+.statsTotalsRow {
+  display: flex;
+  gap: 8px;
+}
+
+.statsTotalItem {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.statsTotalValue {
   font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--cyan);
-  text-transform: uppercase;
-  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
-.timelineEntry {
+.statsTotalValue.sober { color: var(--teal); }
+.statsTotalValue.drank { color: var(--coral); }
+
+.statsTotalLabel {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Combat focus mode — strips everything but the board and ammo */
+
+.page.combatFocus .statsGrid,
+.page.combatFocus .utilityRow,
+.page.combatFocus .installHint,
+.page.combatFocus .recordBanner,
+.page.combatFocus .nextStepBanner,
+.page.combatFocus .legend,
+.page.combatFocus .fleetList,
+.page.combatFocus .footerRow,
+.page.combatFocus .titleRow,
+.page.combatFocus .milestoneRow {
+  display: none;
+}
+
+.page.combatFocus {
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100dvh;
+}
+
+.combatExitBtn {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(18, 21, 29, 0.92);
+  color: var(--cyan);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  font-size: 12px;
+  gap: 6px;
 }
 
-.timelineDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.combatExitBtn svg {
+  width: 14px;
+  height: 14px;
 }
 
-.timelineEntry.sober .timelineDot { background: var(--teal); }
-.timelineEntry.drank .timelineDot { background: var(--coral); }
-
-.timelineDate {
-  font-family: 'Space Mono', monospace;
-  font-size: 10.5px;
-  color: var(--text-muted);
-  min-width: 80px;
+.combatExitBtn:hover {
+  border-color: var(--cyan);
 }
-
-.timelineStatus {
-  font-family: 'Space Mono', monospace;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
-.timelineEntry.sober .timelineStatus { color: var(--teal); }
-.timelineEntry.drank .timelineStatus { color: var(--coral); }
 
 /* Game mode selector */
 
