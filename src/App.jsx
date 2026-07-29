@@ -1232,12 +1232,15 @@ export default function App() {
       {!showIntro && !tutorialModal && !howToPlayOpen && !activeModal && !actionResult && pendingLoot && (
         <div className="modalOverlay" role="dialog" aria-modal="true">
           <div className="modalCard lootCard">
-            <div className="lootIcon">&#127873;</div>
-            <h2>Loot box found!</h2>
+            <div className="lootIcon">{pendingLoot.type === "compass" ? "🧭" : "🎁"}</div>
+            <h2>{pendingLoot.type === "compass" ? "Compass reading" : "Loot box found!"}</h2>
             <p className="lootLabel">{pendingLoot.label}</p>
+            {pendingLoot.type === "compass" && (
+              <p className="compassHint">A vessel has been detected in this direction from your position.</p>
+            )}
             <div className="modalActions">
               <button className="primary" onClick={dismissLootModal}>
-                Nice!
+                {pendingLoot.type === "compass" ? "Copy that" : "Nice!"}
               </button>
             </div>
           </div>

@@ -988,6 +988,12 @@ p {
   color: var(--gold);
 }
 
+.compassHint {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
 .modalCorner {
   position: absolute;
   top: 8px;

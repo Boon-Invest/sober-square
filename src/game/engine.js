@@ -1,6 +1,8 @@
 import {
+  GRID,
   TOTAL,
   rowOf,
+  colOf,
   crossCells,
   block3x3,
   randomBlock3x3,
@@ -14,7 +16,7 @@ import { BOMB_MILESTONES, INTEL_MILESTONES } from "./milestones";
 const SHOOTABLE = new Set(["hidden", "spotted"]);
 const SOBER_DAY_LOOT_CHANCE = 0.15;
 const LAND_HIT_LOOT_CHANCE = 0.33;
-const LOOT_TYPES = ["shots", "bomb", "intel", "autohit", "spot", "rowIntel"];
+const LOOT_TYPES = ["shots", "bomb", "intel", "compass"];
 const SHOT_LOOT_AMOUNTS = [1, 2, 3, 5];
 
 // Onboarding sequence for a brand-new player only. tutorialStep 0..3 each
@@ -201,7 +203,7 @@ function applyHitAt(next, cellIdx) {
   if (!ship) {
     next.cellStatus[cellIdx] = "miss";
     if (isLand) {
-      rollLootBox(next, LAND_HIT_LOOT_CHANCE);
+      rollLootBox(next, LAND_HIT_LOOT_CHANCE, cellIdx);
     }
     return { hit: false, isLand };
   }
@@ -222,11 +224,34 @@ function checkWin(next) {
   if (next.ships.every((s) => s.sunk)) next.status = "won";
 }
 
+function computeCompassBearing(fromCell, toCell) {
+  const fromR = rowOf(fromCell), fromC = colOf(fromCell);
+  const toR = rowOf(toCell), toC = colOf(toCell);
+  const dr = toR - fromR;
+  const dc = toC - fromC;
+
+  const ns = dr < 0 ? "North" : dr > 0 ? "South" : null;
+  const ew = dc > 0 ? "East" : dc < 0 ? "West" : null;
+
+  const absDr = Math.abs(dr);
+  const absDc = Math.abs(dc);
+
+  if (!ns && !ew) return "North-North";
+  if (!ns) return `${ew}-${ew}`;
+  if (!ew) return `${ns}-${ns}`;
+
+  if (absDr >= absDc * 2) return `${ns}-${ns}`;
+  if (absDc >= absDr * 2) return `${ew}-${ew}`;
+  return `${ns}-${ew}`;
+}
+
 // Loot box: triggered either by chance on a sober check-in day, or by
-// chance whenever a shot/bomb lands on land. Six possible rewards, chosen
+// chance whenever a shot/bomb lands on land. Four possible rewards, chosen
 // uniformly; `lootResult` is a transient (non-persisted-meaningfully) field
 // the UI reads once to show a dedicated popup and flash the relevant button.
-function rollLootBox(next, chance) {
+// `sourceCell` is the cell that triggered the loot (or null for check-in loot,
+// which defaults to board center).
+function rollLootBox(next, chance, sourceCell) {
   if (Math.random() >= chance) return;
 
   const type = LOOT_TYPES[Math.floor(Math.random() * LOOT_TYPES.length)];
@@ -254,47 +279,19 @@ function rollLootBox(next, chance) {
     return;
   }
 
-  if (type === "autohit") {
-    const cell = pickRandomUndiscoveredShipCell(next);
-    if (cell === null) {
-      next.shotsAvailable += 1;
-      next.events.push("Loot box found: +1 Shot!");
-      next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
-      return;
-    }
-    applyHitAt(next, cell);
-    checkWin(next);
-    next.events.push("Loot box found: recon radioed in a free confirmed hit!");
-    next.lootResult = { type: "autohit", label: "Free Confirmed Hit!", flashTarget: "fire" };
-    return;
-  }
-
-  if (type === "spot") {
-    const cell = pickRandomUndiscoveredShipCell(next);
-    if (cell === null) {
-      next.shotsAvailable += 1;
-      next.events.push("Loot box found: +1 Shot!");
-      next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
-      return;
-    }
-    next.cellStatus[cell] = "spotted";
-    next.events.push("Loot box found: a ship has been spotted on the board!");
-    next.lootResult = { type: "spot", label: "Ship Spotted!", flashTarget: "fire" };
-    return;
-  }
-
-  // rowIntel
-  const cell = pickRandomUndiscoveredShipCell(next);
-  if (cell === null) {
+  // compass: pick a random undiscovered ship cell and give a bearing
+  const target = pickRandomUndiscoveredShipCell(next);
+  if (target === null) {
     next.shotsAvailable += 1;
     next.events.push("Loot box found: +1 Shot!");
     next.lootResult = { type: "shots", label: "+1 Shot", flashTarget: "fire" };
     return;
   }
-  next.cellStatus[cell] = "spotted";
-  const rowLetter = String.fromCharCode(65 + rowOf(cell));
-  next.events.push(`Loot box found: intelligence report - a vessel in row ${rowLetter}!`);
-  next.lootResult = { type: "rowIntel", label: `Vessel spotted in row ${rowLetter}`, flashTarget: "fire" };
+  const center = Math.floor(GRID / 2) * GRID + Math.floor(GRID / 2);
+  const origin = sourceCell != null ? sourceCell : center;
+  const bearing = computeCompassBearing(origin, target);
+  next.events.push(`Loot box found: compass reads ${bearing}!`);
+  next.lootResult = { type: "compass", label: bearing, flashTarget: "fire" };
 }
 
 export function fireShot(state, cellIdx) {
