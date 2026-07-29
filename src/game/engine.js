@@ -13,7 +13,7 @@ import { BOMB_MILESTONES, INTEL_MILESTONES } from "./milestones";
 
 const SHOOTABLE = new Set(["hidden", "spotted"]);
 const SOBER_DAY_LOOT_CHANCE = 0.15;
-const LAND_HIT_LOOT_CHANCE = 0.25;
+const LAND_HIT_LOOT_CHANCE = 0.33;
 const LOOT_TYPES = ["shots", "bomb", "intel", "autohit", "spot", "rowIntel"];
 const SHOT_LOOT_AMOUNTS = [1, 2, 3, 5];
 
@@ -33,6 +33,8 @@ function cloneState(state) {
     ships: state.ships.map((s) => ({ ...s, cells: s.cells, hits: [...s.hits] })),
     cellStatus: [...state.cellStatus],
     journal: [...(state.journal ?? [])],
+    flags: [...(state.flags ?? [])],
+    checkInHistory: [...(state.checkInHistory ?? [])],
     events: [],
     lootResult: null,
   };
@@ -63,11 +65,14 @@ export function newGameState(prevProfile) {
     // onboarding sequence; a returning player starting a fresh game after a
     // win/loss carries over their already-finished tutorialStep.
     tutorialStep: prevProfile?.tutorialStep ?? 0,
+    gameMode: prevProfile?.gameMode ?? "sobriety",
     daysElapsed: 0,
     shotsAvailable: 0,
     bombsAvailable: 0,
     intelAvailable: 0,
     status: "playing",
+    flags: [],
+    checkInHistory: prevProfile?.checkInHistory ?? [],
     events: [],
     lootResult: null,
   };
@@ -87,9 +92,10 @@ export function hydrateState(loaded) {
     lastShareBonusDate: loaded.lastShareBonusDate ?? null,
     pwaBonusClaimed: Boolean(loaded.pwaBonusClaimed),
     notifBonusClaimed: Boolean(loaded.notifBonusClaimed),
-    // Missing tutorialStep means this save predates onboarding -- treat as
-    // already finished so existing players never see the new-player tutorial.
     tutorialStep: Number.isFinite(loaded.tutorialStep) ? loaded.tutorialStep : TUTORIAL_DONE,
+    gameMode: loaded.gameMode || "sobriety",
+    flags: Array.isArray(loaded.flags) ? loaded.flags : [],
+    checkInHistory: Array.isArray(loaded.checkInHistory) ? loaded.checkInHistory : [],
     events: [],
     lootResult: null,
   };
@@ -130,6 +136,25 @@ export function grantTutorialBonusShots(state) {
 // There's no way for a website to know who a native share sheet was sent
 // to, so this can't verify "a new friend" -- it's an honest once-a-day
 // nudge, not an anti-abuse system.
+export function setGameMode(state, mode) {
+  const next = cloneState(state);
+  next.gameMode = mode;
+  return next;
+}
+
+export function toggleFlag(state, cellIdx) {
+  if (state.cellStatus[cellIdx] !== "hidden") return state;
+  const next = cloneState(state);
+  next.flags = [...(state.flags || [])];
+  const i = next.flags.indexOf(cellIdx);
+  if (i >= 0) {
+    next.flags.splice(i, 1);
+  } else {
+    next.flags.push(cellIdx);
+  }
+  return next;
+}
+
 export function claimShareBonus(state) {
   const today = todayKey();
   const next = cloneState(state);
@@ -169,6 +194,7 @@ export function claimNotifBonus(state) {
 }
 
 function applyHitAt(next, cellIdx) {
+  next.flags = next.flags.filter((f) => f !== cellIdx);
   const isLand = next.land.includes(cellIdx);
   const ship = !isLand ? findShipAt(next.ships, cellIdx) : null;
 
@@ -311,6 +337,7 @@ export function revealIntel(state, centerIdx) {
 
   for (const cellIdx of block3x3(centerIdx)) {
     if (next.cellStatus[cellIdx] !== "hidden") continue;
+    next.flags = next.flags.filter((f) => f !== cellIdx);
     const isLand = next.land.includes(cellIdx);
     const ship = !isLand ? findShipAt(next.ships, cellIdx) : null;
     next.cellStatus[cellIdx] = ship ? "spotted" : "miss";
@@ -377,23 +404,32 @@ function pickRandomUndiscoveredShipCell(next) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-export function applyCheckIn(state, answeredSober, note) {
+export function applyCheckIn(state, answeredSober, note, drinkCount) {
   const today = todayKey();
   if (state.lastCheckDate === today) return state;
 
+  const isReduction = state.gameMode === "reduction";
+  const actualDrinks = isReduction
+    ? (drinkCount ?? (answeredSober ? 0 : 1))
+    : (answeredSober ? 0 : 1);
+  const isSober = actualDrinks === 0;
+
   const next = cloneState(state);
   next.lastCheckDate = today;
+  next.checkInHistory = [
+    ...next.checkInHistory,
+    { date: today, sober: isSober, drinkCount: actualDrinks },
+  ];
 
-  // A streak-record bonus shot only lives for the day it was earned.
   if (next.recordBonusPending) {
     next.shotsAvailable = Math.max(0, next.shotsAvailable - 1);
     next.recordBonusPending = false;
   }
 
-  if (answeredSober) {
+  if (isSober) {
     next.streakDays += 1;
     next.totalSoberDays += 1;
-    next.shotsAvailable += 1;
+    next.shotsAvailable += isReduction ? 3 : 1;
 
     if (next.streakDays > next.highestStreak) {
       next.highestStreak = next.streakDays;
@@ -413,8 +449,13 @@ export function applyCheckIn(state, answeredSober, note) {
 
     rollLootBox(next, SOBER_DAY_LOOT_CHANCE);
   } else {
+    if (isReduction) {
+      if (actualDrinks === 1) next.shotsAvailable += 2;
+      else if (actualDrinks === 2) next.shotsAvailable += 1;
+    }
+
     next.journal = [
-      { date: today, streakBefore: state.streakDays, note: note || "" },
+      { date: today, streakBefore: state.streakDays, note: note || "", drinkCount: actualDrinks },
       ...next.journal,
     ];
     next.streakDays = 0;
@@ -422,7 +463,8 @@ export function applyCheckIn(state, answeredSober, note) {
 
   if (state.status === "playing") {
     next.daysElapsed = Math.min(60, next.daysElapsed + 1);
-    if (!answeredSober) {
+    const fogTriggered = isReduction ? actualDrinks >= 3 : !isSober;
+    if (fogTriggered) {
       applyFogEvent(next);
     }
     checkWin(next);

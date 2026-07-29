@@ -79,24 +79,27 @@ export function randomBlock3x3() {
   return out;
 }
 
-// Grows a handful of organic island blobs until ~15% of the board is land.
+// Generates ~30% land as rectangular island blocks (easy to reason about).
 export function generateLand() {
-  const targetCount = Math.round(TOTAL * 0.15);
+  const targetCount = Math.round(TOTAL * 0.30);
   const land = new Set();
   let guard = 0;
 
-  while (land.size < targetCount && guard < 5000) {
+  while (land.size < targetCount && guard < 500) {
     guard++;
-    const r = 1 + Math.floor(Math.random() * (GRID - 2));
-    const c = 1 + Math.floor(Math.random() * (GRID - 2));
-    let cur = idx(r, c);
-    const blobSize = 3 + Math.floor(Math.random() * 6); // 3..8 cells
+    const w = 2 + Math.floor(Math.random() * 4);
+    const h = 2 + Math.floor(Math.random() * 3);
+    const startR = 1 + Math.floor(Math.random() * (GRID - h - 1));
+    const startC = 1 + Math.floor(Math.random() * (GRID - w - 1));
 
-    for (let step = 0; step < blobSize && land.size < targetCount; step++) {
-      land.add(cur);
-      const options = neighbors8(cur).filter((n) => !land.has(n));
-      if (options.length === 0) break;
-      cur = options[Math.floor(Math.random() * options.length)];
+    for (let r = startR; r < startR + h; r++) {
+      for (let c = startC; c < startC + w; c++) {
+        const isCorner =
+          (r === startR || r === startR + h - 1) &&
+          (c === startC || c === startC + w - 1);
+        if (isCorner && Math.random() < 0.15) continue;
+        land.add(idx(r, c));
+      }
     }
   }
 

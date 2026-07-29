@@ -15,6 +15,8 @@ import {
   advanceTutorialStep,
   grantTutorialStarterKit,
   grantTutorialBonusShots,
+  toggleFlag,
+  setGameMode,
   TUTORIAL_DONE,
 } from "./game/engine";
 import { todayKey } from "./game/utils";
@@ -88,12 +90,16 @@ export default function App() {
   const [flashTargets, setFlashTargets] = useState([]);
   const [pendingTarget, setPendingTarget] = useState(null);
   const [showDrinkWarning, setShowDrinkWarning] = useState(false);
+  const [shotHighlight, setShotHighlight] = useState(null);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const boardRef = useRef(null);
   const [seenBombIntro, setSeenBombIntro] = useState(
     () => localStorage.getItem(BOMB_INTRO_KEY) === "1"
   );
   const [seenIntelIntro, setSeenIntelIntro] = useState(
     () => localStorage.getItem(INTEL_INTRO_KEY) === "1"
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifTime, setNotifTime] = useState(() => {
     try {
@@ -116,6 +122,9 @@ export default function App() {
   function selectMode(nextMode) {
     setMode(nextMode);
     setPendingTarget(null);
+    setTimeout(() => {
+      boardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
   }
 
   function dismissBombIntro() {
@@ -294,6 +303,7 @@ export default function App() {
 
   useEffect(() => {
     if (!notifEnabled) return;
+
     function checkReminder() {
       const today = todayKey();
       const now = new Date();
@@ -319,26 +329,32 @@ export default function App() {
         new Notification(title, { body, icon: "/icon-192.png", tag: "daily-reminder" });
       }
     }
+
     checkReminder();
     const interval = setInterval(checkReminder, 60_000);
     return () => clearInterval(interval);
   }, [notifEnabled, notifTime, state.lastCheckDate]);
 
-  function commitCheckIn(sober, note) {
+  const [pendingDrinkCount, setPendingDrinkCount] = useState(1);
+
+  function commitCheckIn(sober, note, drinkCount) {
     if (!sober) prevCellStatusRef.current = [...state.cellStatus];
-    commit(applyCheckIn(state, sober, note));
+    commit(applyCheckIn(state, sober, note, drinkCount));
   }
 
   function finishReflection(save) {
-    commitCheckIn(false, save ? reflectionNote.trim() : "");
+    commitCheckIn(false, save ? reflectionNote.trim() : "", pendingDrinkCount);
     setReflectionOpen(false);
     setReflectionNote("");
     setShowDrinkWarning(false);
+    setPendingDrinkCount(1);
   }
 
   // Daily check-in gate, then win/loss notice, derived fresh from state each render.
   function getGateModal() {
     const today = todayKey();
+    const isReduction = state.gameMode === "reduction";
+
     if (state.lastCheckDate !== today) {
       if (reflectionOpen) {
         return {
@@ -348,12 +364,15 @@ export default function App() {
         };
       }
       if (showDrinkWarning) {
-        return {
-          title: "INCOMING FOG",
-          body:
-            `Logging a drink will reset your ${state.streakDays}-day streak to zero. ` +
+        const fogWarning = isReduction && pendingDrinkCount < 3
+          ? `Logging ${pendingDrinkCount} drink${pendingDrinkCount > 1 ? "s" : ""} will reset your streak to zero, ` +
+            `but you'll still get ${pendingDrinkCount === 1 ? "2 shots" : "1 shot"} today.`
+          : `Logging ${isReduction ? "3+ drinks" : "a drink"} will reset your ${state.streakDays}-day streak to zero. ` +
             "A patch of fog will also roll back across the board, hiding cells you've " +
-            "already revealed — and any damaged ships caught in it will relocate and heal.",
+            "already revealed — and any damaged ships caught in it will relocate and heal.";
+        return {
+          title: isReduction && pendingDrinkCount < 3 ? "STREAK RESET" : "INCOMING FOG",
+          body: fogWarning,
           isWarning: true,
           actions: [
             { label: "Go back", variant: "secondary", onClick: () => setShowDrinkWarning(false) },
@@ -361,6 +380,21 @@ export default function App() {
           ],
         };
       }
+
+      if (isReduction) {
+        return {
+          title: "DAILY DEBRIEF",
+          body: "How many drinks did you have yesterday?",
+          isReductionDebrief: true,
+          actions: [
+            { label: "None — stayed sober", variant: "primary", onClick: () => commitCheckIn(true, "", 0) },
+            { label: "1 drink (+2 shots)", variant: "secondary", onClick: () => { setPendingDrinkCount(1); setShowDrinkWarning(true); } },
+            { label: "2 drinks (+1 shot)", variant: "secondary", onClick: () => { setPendingDrinkCount(2); setShowDrinkWarning(true); } },
+            { label: "3+ drinks (fog)", variant: "secondary", onClick: () => { setPendingDrinkCount(3); setShowDrinkWarning(true); } },
+          ],
+        };
+      }
+
       return {
         title: "DAILY DEBRIEF",
         body: "Did you drink yesterday?",
@@ -596,6 +630,11 @@ export default function App() {
   const tutorialModal = !showIntro ? getTutorialModal() : null;
 
   function handleCellClick(i) {
+    if (mode === "flag") {
+      if (state.cellStatus[i] !== "hidden") return;
+      persist(toggleFlag(state, i));
+      return;
+    }
     if (mode === "fire") {
       if (!["hidden", "spotted"].includes(state.cellStatus[i])) return;
       if (state.shotsAvailable <= 0) {
@@ -611,6 +650,8 @@ export default function App() {
       commit(next);
       if (next.cellStatus[i] === "hit") playHit();
       else if (next.cellStatus[i] === "miss") playMiss();
+      setShotHighlight(i);
+      setTimeout(() => setShotHighlight(null), 1500);
       setActionResult(buildActionResultMessage("fire", prevState, next, i));
       if (next.lootResult) setPendingLoot(next.lootResult);
     } else if (mode === "bomb") {
@@ -666,7 +707,7 @@ export default function App() {
 
   async function handleShare() {
     const result = await shareProgress({
-      highestStreak: state.highestStreak,
+      streakDays: state.streakDays,
       totalSoberDays: state.totalSoberDays,
     });
     if (result === "copied") showToast("Broadcast copied to your clipboard!");
@@ -789,6 +830,9 @@ export default function App() {
         <button className="utilityBtn" onClick={() => setHistoryOpen(true)}>
           &#9702; LOG
         </button>
+        <button className="utilityBtn" onClick={() => setStatsOpen(true)}>
+          &#9733; STATS
+        </button>
         <button
           className={`utilityBtn ${flashTargets.includes("broadcast") ? "flashing" : ""}`}
           onClick={handleShare}
@@ -800,6 +844,9 @@ export default function App() {
           onClick={() => setNotifOpen(true)}
         >
           &#128276; REMIND
+        </button>
+        <button className="utilityBtn" onClick={() => setSettingsOpen(true)}>
+          &#9881; MODE
         </button>
       </div>
 
@@ -829,60 +876,92 @@ export default function App() {
         <span>{getNextStepMessage()}</span>
       </div>
 
-      <div className="resourceRow">
-        <div
-          className={`resourceWrap ${state.shotsAvailable > 0 ? "ready" : ""} ${flashTargets.includes("fire") ? "flashing" : ""}`}
-        >
+      <div className="modeSelector">
+        <div className="modeSelectorTrack">
           <button
-            className={`resourceBtn fire ${mode === "fire" ? "active" : ""}`}
+            className={`modeBtn fire ${mode === "fire" ? "active" : ""}${flashTargets.includes("fire") ? " flashing" : ""}`}
             onClick={() => selectMode("fire")}
           >
-            <span className="resIcon">&#9678;</span>FIRE
-            <span className="resCount">{state.shotsAvailable}</span>
+            <svg className="modeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="3" />
+              <line x1="12" y1="1" x2="12" y2="5" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="1" y1="12" x2="5" y2="12" />
+              <line x1="19" y1="12" x2="23" y2="12" />
+            </svg>
+            <span className="modeBtnLabel">FIRE</span>
+            <span className="modeBtnCount">{state.shotsAvailable}</span>
           </button>
-        </div>
-        <div
-          className={`resourceWrap ${state.bombsAvailable > 0 ? "ready" : ""} ${flashTargets.includes("bomb") ? "flashing" : ""}`}
-        >
           <button
-            className={`resourceBtn bomb ${mode === "bomb" ? "active" : ""}`}
+            className={`modeBtn bomb ${mode === "bomb" ? "active" : ""}${flashTargets.includes("bomb") ? " flashing" : ""}`}
             onClick={() => selectMode("bomb")}
             disabled={state.bombsAvailable <= 0}
           >
-            <span className="resIcon">&#10022;</span>BOMB
-            <span className="resCount">{state.bombsAvailable}</span>
+            <svg className="modeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="13" r="8" />
+              <line x1="15" y1="5" x2="18" y2="2" />
+              <path d="M16.5 1.5 L20 2 L18.5 5.5" strokeLinejoin="round" />
+              <line x1="8" y1="13" x2="14" y2="13" />
+              <line x1="11" y1="10" x2="11" y2="16" />
+            </svg>
+            <span className="modeBtnLabel">BOMB</span>
+            <span className="modeBtnCount">{state.bombsAvailable}</span>
           </button>
+          <button
+            className={`modeBtn intel ${mode === "intel" ? "active" : ""}${flashTargets.includes("intel") ? " flashing" : ""}`}
+            onClick={() => selectMode("intel")}
+            disabled={state.intelAvailable <= 0}
+          >
+            <svg className="modeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2 A10 10 0 0 1 22 12" strokeDasharray="4 3" />
+              <line x1="12" y1="12" x2="18" y2="6" />
+            </svg>
+            <span className="modeBtnLabel">INTEL</span>
+            <span className="modeBtnCount">{state.intelAvailable}</span>
+          </button>
+          <button
+            className={`modeBtn flag ${mode === "flag" ? "active" : ""}`}
+            onClick={() => selectMode("flag")}
+          >
+            <svg className="modeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="5" y1="3" x2="5" y2="22" />
+              <path d="M5 3 L19 8 L5 13 Z" fill="currentColor" opacity="0.4" />
+            </svg>
+            <span className="modeBtnLabel">FLAG</span>
+            <span className="modeBtnCount">{(state.flags || []).length}</span>
+          </button>
+        </div>
+        <div className="modeIndicator">
+          <span className={`modeIndicatorDot ${mode}`} />
+          <span className="modeIndicatorText">
+            {mode === "fire" && "Tap a hidden square to fire a single shot."}
+            {mode === "bomb" && "Tap a square to detonate a 5-cell cross."}
+            {mode === "intel" && "Tap a square to reveal a 3×3 area, no damage."}
+            {mode === "flag" && "Tap fog squares to mark where ships can’t be."}
+          </span>
+        </div>
+      </div>
+      <div className="milestoneRow">
+        <div className="milestoneItem bomb">
           <div className="progressTrack">
             <div className="progressFill bomb" style={{ width: `${bombProgress.fraction * 100}%` }} />
           </div>
           <span className="progressLabel">
-            {bombProgress.next ? `NEXT D${bombProgress.next}` : "MAXED"}
+            {bombProgress.next ? `BOMB D${bombProgress.next}` : "MAXED"}
           </span>
         </div>
-        <div
-          className={`resourceWrap ${state.intelAvailable > 0 ? "ready" : ""} ${flashTargets.includes("intel") ? "flashing" : ""}`}
-        >
-          <button
-            className={`resourceBtn intel ${mode === "intel" ? "active" : ""}`}
-            onClick={() => selectMode("intel")}
-            disabled={state.intelAvailable <= 0}
-          >
-            <span className="resIcon">&#9670;</span>INTEL
-            <span className="resCount">{state.intelAvailable}</span>
-          </button>
+        <div className="milestoneItem intel">
           <div className="progressTrack">
             <div className="progressFill intel" style={{ width: `${intelProgress.fraction * 100}%` }} />
           </div>
           <span className="progressLabel">
-            {intelProgress.next ? `NEXT D${intelProgress.next}` : "MAXED"}
+            {intelProgress.next ? `INTEL D${intelProgress.next}` : "MAXED"}
           </span>
         </div>
       </div>
-      <p className="modeHint">
-        {mode === "fire" && "Tap a hidden square to fire a single shot."}
-        {mode === "bomb" && "Tap a square to detonate a 5-cell cross."}
-        {mode === "intel" && "Tap a square to reveal a 3×3 area, no damage."}
-      </p>
 
       {mode === "bomb" && pendingTarget !== null && (
         <div className="confirmBanner">
@@ -911,7 +990,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="boardFrame">
+      <div className="boardFrame" ref={boardRef}>
         <div className="colRuler">
           <span className="rulerCell" />
           {COL_LABELS.map((l, idx) => (
@@ -941,10 +1020,11 @@ export default function App() {
                 const status = state.cellStatus[i];
                 const isLand = state.land.includes(i);
                 const isGreenery = state.greenery.includes(i);
+                const isFlagged = (state.flags || []).includes(i);
                 let cls = "cell";
                 let style;
                 if (status === "hidden") cls += " fog";
-                else if (status === "spotted") cls += " spotted";
+                else if (status === "spotted") cls += " spotted" + getShipShapeClass(state.ships, i);
                 else if (status === "hit") cls += " hit" + getShipShapeClass(state.ships, i);
                 else if (status === "sunk") cls += " sunk" + getShipShapeClass(state.ships, i);
                 else {
@@ -962,6 +1042,8 @@ export default function App() {
                 }
                 if (status !== "hidden" && isLand && isGreenery) cls += " greenery";
                 if (previewSet.has(i)) cls += " previewTarget";
+                if (shotHighlight === i) cls += " shotTarget";
+                if (isFlagged && status === "hidden") cls += " flagged";
 
                 return (
                   <button
@@ -970,7 +1052,9 @@ export default function App() {
                     style={style}
                     onClick={() => handleCellClick(i)}
                     aria-label={`row ${rowOf(i) + 1} column ${colOf(i) + 1}`}
-                  />
+                  >
+                    {isFlagged && status === "hidden" && <span className="flagMark">&#9873;</span>}
+                  </button>
                 );
               })}
             </div>
@@ -1098,7 +1182,7 @@ export default function App() {
                 </div>
               </>
             ) : (
-              <div className="modalActions">
+              <div className={`modalActions${activeModal.isReductionDebrief ? " reductionActions" : ""}`}>
                 {activeModal.actions.map((a, idx) => (
                   <button key={idx} className={a.variant} onClick={a.onClick}>
                     {a.label}
@@ -1185,9 +1269,9 @@ export default function App() {
               <p className="notifBonus">+1 bonus shot for enabling reminders!</p>
             )}
             <p>
-              Pick your preferred check-in time. Browser notifications fire
-              when the app is open; a calendar event is the most reliable
-              daily alarm across all devices.
+              A <strong>calendar event</strong> is the most reliable daily alarm &mdash;
+              it rings at the exact time on any device. Browser notifications
+              only fire while the app is open (a browser limitation).
             </p>
 
             <div className="notifTimePicker">
@@ -1231,6 +1315,92 @@ export default function App() {
             <div className="modalActions">
               <button className="primary" onClick={() => setNotifOpen(false)}>
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard">
+            <h2>Game mode</h2>
+            <p>Choose a mode that fits your goals. This applies to your next daily debrief onwards.</p>
+            <div className="gameModeOptions">
+              <button
+                className={`gameModeOption ${state.gameMode === "sobriety" ? "active" : ""}`}
+                onClick={() => persist(setGameMode(state, "sobriety"))}
+              >
+                <span className="gameModeTitle">Sobriety</span>
+                <span className="gameModeDesc">Aim for zero drinks. 1 shot per sober day. Any drinking resets your streak and triggers fog.</span>
+              </button>
+              <button
+                className={`gameModeOption ${state.gameMode === "reduction" ? "active" : ""}`}
+                onClick={() => persist(setGameMode(state, "reduction"))}
+              >
+                <span className="gameModeTitle">Reduction</span>
+                <span className="gameModeDesc">Cut back gradually. 0 drinks = 3 shots, 1 drink = 2 shots, 2 drinks = 1 shot, 3+ drinks = fog.</span>
+              </button>
+            </div>
+            <div className="modalActions">
+              <button className="primary" onClick={() => setSettingsOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statsOpen && (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard historyCard">
+            <h2>Progress tracker</h2>
+            {(state.checkInHistory || []).length === 0 ? (
+              <p>No check-ins recorded yet. Come back after your first daily debrief.</p>
+            ) : (
+              <>
+                <div className="statsOverview">
+                  <div className="statsOverviewItem">
+                    <span className="statsOverviewValue">{state.totalSoberDays}</span>
+                    <span className="statsOverviewLabel">Sober days</span>
+                  </div>
+                  <div className="statsOverviewItem">
+                    <span className="statsOverviewValue">{state.streakDays}</span>
+                    <span className="statsOverviewLabel">Current streak</span>
+                  </div>
+                  <div className="statsOverviewItem">
+                    <span className="statsOverviewValue">{state.highestStreak}</span>
+                    <span className="statsOverviewLabel">Best streak</span>
+                  </div>
+                </div>
+                <div className="calendarGrid">
+                  {(state.checkInHistory || []).slice(-60).map((entry, idx) => (
+                    <div
+                      key={idx}
+                      className={`calendarDay ${entry.sober ? "sober" : "drank"}`}
+                      title={`${entry.date}: ${entry.sober ? "Sober" : "Drank"}`}
+                    />
+                  ))}
+                </div>
+                <div className="calendarLegend">
+                  <span><i className="swatch calSober" />Sober</span>
+                  <span><i className="swatch calDrank" />Drank</span>
+                </div>
+                <div className="streakTimeline">
+                  <h3>Recent check-ins</h3>
+                  {(state.checkInHistory || []).slice(-14).reverse().map((entry, idx) => (
+                    <div key={idx} className={`timelineEntry ${entry.sober ? "sober" : "drank"}`}>
+                      <span className="timelineDot" />
+                      <span className="timelineDate">{entry.date}</span>
+                      <span className="timelineStatus">{entry.sober ? "Sober" : "Drank"}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modalActions">
+              <button className="primary" onClick={() => setStatsOpen(false)}>
+                Close
               </button>
             </div>
           </div>

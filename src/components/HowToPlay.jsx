@@ -12,6 +12,12 @@ export default function HowToPlay() {
           the fleet within 60 days.
         </p>
         <p>
+          Ships are never placed directly next to each other - not even
+          diagonally. Use this to your advantage: once you reveal a cell with no
+          ship, all eight surrounding squares are guaranteed ship-free too. Use
+          the Flag mode to mark squares you&rsquo;ve ruled out.
+        </p>
+        <p>
           This is a solo game, not multiplayer - there's no other player and
           no one else to compete against. A hidden, computer-placed fleet is
           waiting for you alone to find, using your own sobriety streak to

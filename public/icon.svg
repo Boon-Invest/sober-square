@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#49d8d0"/>
+      <stop offset="100%" stop-color="#35c2b0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- 3x3 grid -->
+  <rect x="108" y="108" width="80" height="80" rx="8" fill="rgba(11,22,32,0.35)"/>
+  <rect x="216" y="108" width="80" height="80" rx="8" fill="rgba(11,22,32,0.85)"/>
+  <rect x="324" y="108" width="80" height="80" rx="8" fill="rgba(11,22,32,0.35)"/>
+  <rect x="108" y="216" width="80" height="80" rx="8" fill="rgba(11,22,32,0.85)"/>
+  <rect x="216" y="216" width="80" height="80" rx="8" fill="#0b1620"/>
+  <rect x="324" y="216" width="80" height="80" rx="8" fill="rgba(11,22,32,0.85)"/>
+  <rect x="108" y="324" width="80" height="80" rx="8" fill="rgba(11,22,32,0.35)"/>
+  <rect x="216" y="324" width="80" height="80" rx="8" fill="rgba(11,22,32,0.85)"/>
+  <rect x="324" y="324" width="80" height="80" rx="8" fill="rgba(11,22,32,0.35)"/>
+</svg>
