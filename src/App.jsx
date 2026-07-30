@@ -33,7 +33,6 @@ const INSTALL_HINT_KEY = "sober_square_install_hint_dismissed";
 const BOMB_INTRO_KEY = "sober_square_seen_bomb_intro";
 const INTEL_INTRO_KEY = "sober_square_seen_intel_intro";
 const NOTIF_KEY = "sober_square_notif_settings";
-const NOTIF_LAST_FIRED_KEY = "sober_square_last_notif";
 
 // Logo badge: a 3x3 grid glyph (miniature radar grid), not a lettered mark.
 const LOGO_DOT_CLASSES = ["", "edge", "", "edge", "center", "edge", "", "edge", ""];
@@ -139,9 +138,18 @@ export default function App() {
     setSeenIntelIntro(true);
   }
 
-  async function enableNotifications(time) {
-    if (!("Notification" in window)) {
-      showToast("Notifications aren't supported on this browser.");
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  async function enableNotifications() {
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      showToast("Push notifications aren't supported on this browser.");
       return;
     }
     const perm = await Notification.requestPermission();
@@ -149,15 +157,46 @@ export default function App() {
       showToast("Permission denied — check your browser settings.");
       return;
     }
-    const settings = { enabled: true, time };
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(settings));
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(
+          import.meta.env.VITE_VAPID_PUBLIC_KEY
+        ),
+      });
+
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription, hour: 8 }),
+      });
+    } catch (err) {
+      showToast("Failed to set up push — try again later.");
+      return;
+    }
+
+    localStorage.setItem(NOTIF_KEY, JSON.stringify({ enabled: true, time: notifTime }));
     setNotifEnabled(true);
-    setNotifTime(time);
     commit(claimNotifBonus(state));
     setNotifOpen(false);
+    showToast("Push notifications enabled — you'll get a daily 9am reminder.");
   }
 
-  function disableNotifications() {
+  async function disableNotifications() {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.getSubscription();
+      if (subscription) {
+        await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        await subscription.unsubscribe();
+      }
+    } catch {}
     localStorage.setItem(NOTIF_KEY, JSON.stringify({ enabled: false, time: notifTime }));
     setNotifEnabled(false);
     showToast("Daily reminders turned off.");
@@ -302,40 +341,6 @@ export default function App() {
     return () => window.removeEventListener("appinstalled", handleAppInstalled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!notifEnabled) return;
-
-    function checkReminder() {
-      const today = todayKey();
-      const now = new Date();
-      const [h, m] = notifTime.split(":").map(Number);
-      const target = new Date();
-      target.setHours(h, m, 0, 0);
-      if (now < target) return;
-      const lastFired = localStorage.getItem(NOTIF_LAST_FIRED_KEY);
-      if (lastFired === today) return;
-      localStorage.setItem(NOTIF_LAST_FIRED_KEY, today);
-      const checkedIn = state.lastCheckDate === today;
-      const title = checkedIn
-        ? "Sober Square — Use your shots!"
-        : "Sober Square — Daily Debrief";
-      const body = checkedIn
-        ? "You've got shots to fire — don't let them go to waste!"
-        : "Time to check in! Open the app to log your day.";
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification(title, { body, icon: "/icon-192.png", tag: "daily-reminder" });
-        });
-      } else if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(title, { body, icon: "/icon-192.png", tag: "daily-reminder" });
-      }
-    }
-
-    checkReminder();
-    const interval = setInterval(checkReminder, 60_000);
-    return () => clearInterval(interval);
-  }, [notifEnabled, notifTime, state.lastCheckDate]);
 
   const [pendingDrinkCount, setPendingDrinkCount] = useState(1);
 
@@ -1292,36 +1297,22 @@ export default function App() {
             {!state.notifBonusClaimed && (
               <p className="notifBonus">+1 bonus shot for enabling reminders!</p>
             )}
-            <p>
-              A <strong>calendar event</strong> is the most reliable daily alarm &mdash;
-              it rings at the exact time on any device. Browser notifications
-              only fire while the app is open (a browser limitation).
-            </p>
-
-            <div className="notifTimePicker">
-              <span className="notifTimeLabel">Remind me at</span>
-              <input
-                type="time"
-                value={notifTime}
-                onChange={(e) => setNotifTime(e.target.value)}
-              />
-            </div>
 
             <div className="notifMenu">
               <div className="notifMenuItem">
                 <div className="notifMenuIcon">&#128276;</div>
                 <div className="notifMenuBody">
-                  <div className="notifMenuTitle">Browser notifications</div>
+                  <div className="notifMenuTitle">Push notifications</div>
                   <div className="notifMenuDesc">
                     {notifEnabled
-                      ? "Active — you'll get a nudge when the app is open."
-                      : "Get a push when you open the app past your reminder time."}
+                      ? "Active — you'll get a push at ~9am daily, even when the app is closed."
+                      : "Get a daily push at ~9am reminding you to check in."}
                   </div>
                 </div>
                 {notifEnabled ? (
                   <button className="notifMenuAction on" onClick={disableNotifications}>ON</button>
                 ) : (
-                  <button className="notifMenuAction" onClick={() => enableNotifications(notifTime)}>OFF</button>
+                  <button className="notifMenuAction" onClick={enableNotifications}>OFF</button>
                 )}
               </div>
               <div className="notifMenuItem">
