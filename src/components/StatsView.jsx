@@ -8,7 +8,10 @@ const MONTH_NAMES = [
 ];
 
 function dateToKey(d) {
-  return d.toISOString().slice(0, 10);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function addDays(d, n) {
